@@ -1,8 +1,16 @@
 import { Hero, Build } from '../types';
 
-const API_BASE_URL = '/.netlify/functions/api';
-
 class ApiService {
+  private baseUrl: string;
+
+  constructor() {
+    // Use Vercel API endpoints
+    // For production, use Vercel's VERCEL_URL or custom VITE_API_URL
+    this.baseUrl = process.env.NODE_ENV === 'production' 
+      ? (import.meta.env.VITE_API_URL || `https://${import.meta.env.VITE_VERCEL_URL || 'your-vercel-app.vercel.app'}/api`)
+      : 'http://localhost:3000/api';
+  }
+
   private async fetchWithErrorHandling<T>(url: string): Promise<T> {
     try {
       const response = await fetch(url);
@@ -13,33 +21,33 @@ class ApiService {
       
       return await response.json();
     } catch (error) {
-      console.error(`API Error (${url}):`, error);
-      throw new Error(`Failed to fetch data from ${url}`);
+      console.error('API request failed:', error);
+      throw error;
     }
   }
 
   async getHeroes(): Promise<Hero[]> {
-    return this.fetchWithErrorHandling<Hero[]>(`${API_BASE_URL}/heroes`);
+    return this.fetchWithErrorHandling<Hero[]>(`${this.baseUrl}/heroes`);
   }
 
   async getHero(id: string): Promise<Hero> {
-    return this.fetchWithErrorHandling<Hero>(`${API_BASE_URL}/heroes/${id}`);
+    return this.fetchWithErrorHandling<Hero>(`${this.baseUrl}/heroes/${id}`);
   }
 
   async getBuilds(): Promise<Build[]> {
-    return this.fetchWithErrorHandling<Build[]>(`${API_BASE_URL}/builds`);
+    return this.fetchWithErrorHandling<Build[]>(`${this.baseUrl}/builds`);
   }
 
   async getHeroBuilds(heroId: string): Promise<Build[]> {
-    return this.fetchWithErrorHandling<Build[]>(`${API_BASE_URL}/heroes/${heroId}/builds`);
+    return this.fetchWithErrorHandling<Build[]>(`${this.baseUrl}/heroes/${heroId}/builds`);
   }
 
   async getBuild(heroId: string, mood: string): Promise<Build> {
-    return this.fetchWithErrorHandling<Build>(`${API_BASE_URL}/heroes/${heroId}/builds/${mood}`);
+    return this.fetchWithErrorHandling<Build>(`${this.baseUrl}/heroes/${heroId}/builds/${mood}`);
   }
 
   async checkHealth(): Promise<{ status: string; timestamp: string }> {
-    return this.fetchWithErrorHandling<{ status: string; timestamp: string }>(`${API_BASE_URL}/health`);
+    return this.fetchWithErrorHandling<{ status: string; timestamp: string }>(`${this.baseUrl}/health`);
   }
 }
 

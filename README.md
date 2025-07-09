@@ -21,8 +21,9 @@ A comprehensive Dota 2 hero recommendation and build guide application with mood
 - **Vite** for development and building
 
 ### Backend
-- **Node.js** with Express
-- **PostgreSQL** database
+- **Vercel Serverless Functions** with Node.js
+- **Neon PostgreSQL** database
+- **Prisma ORM** for database operations
 - **CORS** enabled for cross-origin requests
 
 ## 📋 Prerequisites
@@ -31,7 +32,8 @@ Before you begin, ensure you have the following installed:
 
 - **Node.js** (version 16 or higher)
 - **npm** (comes with Node.js)
-- **PostgreSQL** (version 12 or higher)
+- **Vercel CLI** (for deployment)
+- **Neon PostgreSQL** database
 
 ## 🛠️ Local Development Setup
 
@@ -50,37 +52,11 @@ npm install
 
 ### 3. Database Setup
 
-#### Create PostgreSQL Database
+#### Create Neon Database
 
-1. **Start PostgreSQL service** (varies by OS):
-   ```bash
-   # macOS (with Homebrew)
-   brew services start postgresql
-   
-   # Ubuntu/Debian
-   sudo systemctl start postgresql
-   
-   # Windows (if installed as service)
-   net start postgresql
-   ```
-
-2. **Create database and user**:
-   ```sql
-   -- Connect to PostgreSQL as superuser
-   psql -U postgres
-   
-   -- Create database
-   CREATE DATABASE dota_helper;
-   
-   -- Create user (optional, you can use existing user)
-   CREATE USER your_username WITH PASSWORD 'your_password';
-   
-   -- Grant privileges
-   GRANT ALL PRIVILEGES ON DATABASE dota_helper TO your_username;
-   
-   -- Exit psql
-   \q
-   ```
+1. **Go to [neon.tech](https://neon.tech)** and create a free account
+2. **Create a new project** and get your connection string
+3. **The connection string will look like**: `postgresql://username:password@host/database?sslmode=require`
 
 #### Configure Environment Variables
 
@@ -92,15 +68,7 @@ npm install
 2. **Edit `.env` file** with your database credentials:
    ```env
    # Database Configuration
-   DATABASE_URL=postgresql://your_username:your_password@localhost:5432/dota_helper
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=dota_helper
-   DB_USER=your_username
-   DB_PASSWORD=your_password
-   
-   # Server Configuration
-   PORT=3001
+   DATABASE_URL=postgresql://username:password@host/database?sslmode=require
    ```
 
 ### 4. Database Migration
@@ -108,15 +76,13 @@ npm install
 Run the migration script to create tables and populate data:
 
 ```bash
-node server/migrate.js
+npm run db:migrate
 ```
 
 You should see output like:
 ```
 ✅ Database schema created successfully
-🧹 Cleared existing heroes data
 ✅ Inserted XXX heroes successfully
-🧹 Cleared existing builds data
 ✅ Inserted XXX builds successfully
 🎉 Migration completed successfully!
 ```
@@ -126,45 +92,49 @@ You should see output like:
 #### Option 1: Start Both Frontend and Backend Together (Recommended)
 
 ```bash
-npm run dev:full
+npm run dev
 ```
 
 This will start:
-- Backend API server on `http://localhost:3001`
 - Frontend development server on `http://localhost:5173`
+- Vercel functions will be available at `http://localhost:3000/api`
 
 #### Option 2: Start Services Separately
 
-**Terminal 1 - Backend:**
-```bash
-npm run dev:server
-```
-
-**Terminal 2 - Frontend:**
+**Terminal 1 - Frontend:**
 ```bash
 npm run dev
+```
+
+**Terminal 2 - Backend (optional for local development):**
+```bash
+npm run dev:server
 ```
 
 ### 6. Access the Application
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:5173
-- **API**: http://localhost:3001/api
+- **API**: http://localhost:3000/api
 
 ## 📁 Project Structure
 
 ```
-├── server/                 # Backend API server
+├── api/                    # Vercel serverless functions
+│   ├── heroes/            # Hero-related API endpoints
+│   ├── builds/            # Build-related API endpoints
+│   └── health.js          # Health check endpoint
+├── server/                # Local development server
 │   ├── index.js           # Express server and API routes
 │   ├── database.js        # PostgreSQL connection setup
-│   ├── migrate.js         # Database migration script
-│   └── schema.sql         # Database schema definition
+│   └── migrate.js         # Database migration script
 ├── src/
 │   ├── components/        # React components
 │   ├── contexts/          # React context providers
 │   ├── data/             # Static data files (legacy)
 │   ├── services/         # API service layer
 │   └── types/            # TypeScript type definitions
+├── prisma/               # Prisma schema and migrations
 ├── .env.example          # Environment variables template
 ├── .env                  # Your environment variables (not in git)
 └── README.md            # This file
@@ -181,66 +151,69 @@ The backend provides the following REST API endpoints:
 - `GET /api/heroes/:heroId/builds` - Get builds for specific hero
 - `GET /api/heroes/:heroId/builds/:mood` - Get specific build
 
-## 🔍 Troubleshooting
-
-### Database Connection Issues
-
-1. **Check PostgreSQL is running**:
-   ```bash
-   pg_isready -h localhost -p 5432
-   ```
-
-2. **Verify database exists**:
-   ```bash
-   psql -U your_username -d dota_helper -c "SELECT 1;"
-   ```
-
-3. **Check environment variables** in `.env` file
-
-### API Connection Issues
-
-1. **Verify backend server is running** on port 3001
-2. **Check browser console** for CORS or network errors
-3. **Test API directly**:
-   ```bash
-   curl http://localhost:3001/api/health
-   ```
-
-### Port Conflicts
-
-If ports 3001 or 5173 are in use:
-
-1. **Change API port** in `.env`:
-   ```env
-   PORT=3002
-   ```
-
-2. **Update API URL** in `src/services/api.ts`:
-   ```typescript
-   const API_BASE_URL = 'http://localhost:3002/api';
-   ```
-
 ## 🚀 Production Deployment
 
-### Build for Production
+### Deploy to Vercel
 
-```bash
-npm run build
-```
+1. **Install Vercel CLI**:
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **Login to Vercel**:
+   ```bash
+   vercel login
+   ```
+
+3. **Deploy your project**:
+   ```bash
+   vercel
+   ```
+
+4. **Set environment variables**:
+   ```bash
+   vercel env add DATABASE_URL production
+   ```
 
 ### Environment Variables for Production
 
 Update your `.env` for production:
 
 ```env
-DATABASE_URL=your_production_database_url
-DB_HOST=your_production_host
-DB_PORT=5432
-DB_NAME=your_production_db
-DB_USER=your_production_user
-DB_PASSWORD=your_production_password
-PORT=3001
+DATABASE_URL=your_neon_production_database_url
 ```
+
+## 🔍 Troubleshooting
+
+### Database Connection Issues
+
+1. **Check Neon database is accessible**:
+   ```bash
+   psql "your_neon_connection_string"
+   ```
+
+2. **Verify environment variables** in `.env` file
+
+3. **Test database connection**:
+   ```bash
+   npm run db:migrate
+   ```
+
+### API Connection Issues
+
+1. **Verify Vercel functions are running** locally or on production
+2. **Check browser console** for CORS or network errors
+3. **Test API directly**:
+   ```bash
+   curl http://localhost:3000/api/health
+   ```
+
+### Port Conflicts
+
+If ports 3000 or 5173 are in use:
+
+1. **Change API port** in Vercel configuration
+2. **Update API URL** in `src/services/api.ts`
 
 ## 🤝 Contributing
 
@@ -257,3 +230,9 @@ This project is licensed under the MIT License.
 ## 🎮 About
 
 Created by **CYBERSPYDE** - A comprehensive tool for Dota 2 players to discover heroes and builds based on their current gaming mood and playstyle preferences.
+
+## 📚 Additional Resources
+
+- [Vercel Deployment Guide](VERCEL_DEPLOYMENT.md) - Detailed deployment instructions
+- [Prisma Documentation](https://www.prisma.io/docs/) - Database ORM documentation
+- [Neon Documentation](https://neon.tech/docs) - PostgreSQL hosting documentation
