@@ -1,10 +1,7 @@
-import { Pool } from 'pg';
+import { PrismaClient } from '@prisma/client';
 
 // Database connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+const prisma = new PrismaClient();
 
 // Helper function to handle CORS
 const corsHeaders = {
@@ -41,33 +38,34 @@ export async function handler(event, context) {
 
     // Get all heroes
     if (pathSegments[0] === 'heroes' && pathSegments.length === 1) {
-      const heroesQuery = `
-        SELECT 
-          h.*,
-          (SELECT array_agg(m.mood) FROM (SELECT DISTINCT hm.mood FROM hero_moods hm WHERE hm.hero_id = h.id) m) as moods,
-          (SELECT array_agg(s.strength ORDER BY s.order_index) FROM hero_strengths s WHERE s.hero_id = h.id) as strengths,
-          (SELECT array_agg(w.weakness ORDER BY w.order_index) FROM hero_weaknesses w WHERE w.hero_id = h.id) as weaknesses
-        FROM heroes h
-        ORDER BY h.name
-      `;
+      const heroes = await prisma.hero.findMany({
+        include: {
+          moods: true,
+          strengths: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          weaknesses: {
+            orderBy: { orderIndex: 'asc' }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
       
-      const result = await pool.query(heroesQuery);
-      
-      const heroes = result.rows.map(hero => ({
+      const formattedHeroes = heroes.map(hero => ({
         id: hero.id,
         name: hero.name,
         role: hero.role,
         difficulty: hero.difficulty,
         description: hero.description,
-        moods: hero.moods.filter(mood => mood !== null),
-        strengths: hero.strengths.filter(strength => strength !== null),
-        weaknesses: hero.weaknesses.filter(weakness => weakness !== null)
+        moods: hero.moods.map(mood => mood.mood),
+        strengths: hero.strengths.map(strength => strength.strength),
+        weaknesses: hero.weaknesses.map(weakness => weakness.weakness)
       }));
       
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify(heroes)
+        body: JSON.stringify(formattedHeroes)
       };
     }
 
@@ -75,19 +73,20 @@ export async function handler(event, context) {
     if (pathSegments[0] === 'heroes' && pathSegments.length === 2) {
       const heroId = pathSegments[1];
       
-      const heroQuery = `
-        SELECT 
-          h.*,
-          (SELECT array_agg(m.mood) FROM (SELECT DISTINCT hm.mood FROM hero_moods hm WHERE hm.hero_id = h.id) m) as moods,
-          (SELECT array_agg(s.strength ORDER BY s.order_index) FROM hero_strengths s WHERE s.hero_id = h.id) as strengths,
-          (SELECT array_agg(w.weakness ORDER BY w.order_index) FROM hero_weaknesses w WHERE w.hero_id = h.id) as weaknesses
-        FROM heroes h
-        WHERE h.id = $1
-      `;
+      const hero = await prisma.hero.findUnique({
+        where: { id: heroId },
+        include: {
+          moods: true,
+          strengths: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          weaknesses: {
+            orderBy: { orderIndex: 'asc' }
+          }
+        }
+      });
       
-      const result = await pool.query(heroQuery, [heroId]);
-      
-      if (result.rows.length === 0) {
+      if (!hero) {
         return {
           statusCode: 404,
           headers: corsHeaders,
@@ -95,16 +94,15 @@ export async function handler(event, context) {
         };
       }
       
-      const hero = result.rows[0];
       const heroData = {
         id: hero.id,
         name: hero.name,
         role: hero.role,
         difficulty: hero.difficulty,
         description: hero.description,
-        moods: hero.moods.filter(mood => mood !== null),
-        strengths: hero.strengths.filter(strength => strength !== null),
-        weaknesses: hero.weaknesses.filter(weakness => weakness !== null)
+        moods: hero.moods.map(mood => mood.mood),
+        strengths: hero.strengths.map(strength => strength.strength),
+        weaknesses: hero.weaknesses.map(weakness => weakness.weakness)
       };
       
       return {
@@ -116,59 +114,54 @@ export async function handler(event, context) {
 
     // Get all builds
     if (pathSegments[0] === 'builds' && pathSegments.length === 1) {
-      const buildsQuery = `
-        SELECT 
-          b.*,
-          json_agg(
-            json_build_object(
-              'id', i.id,
-              'name', i.name,
-              'cost', i.cost,
-              'phase', i.phase,
-              'priority', i.priority,
-              'description', i.description
-            ) ORDER BY i.order_index
-          ) as items,
-          (
-            SELECT array_agg(pd.do_item ORDER BY pd.order_index)
-            FROM playstyle_dos pd WHERE pd.build_id = b.id
-          ) as dos,
-          (
-            SELECT array_agg(pdn.dont_item ORDER BY pdn.order_index)
-            FROM playstyle_donts pdn WHERE pdn.build_id = b.id
-          ) as donts,
-          (
-            SELECT array_agg(pt.tip ORDER BY pt.order_index)
-            FROM playstyle_tips pt WHERE pt.build_id = b.id
-          ) as tips
-        FROM builds b
-        LEFT JOIN items i ON b.id = i.build_id
-        GROUP BY b.id, b.hero_id, b.mood, b.early_game, b.mid_game, b.late_game, b.created_at, b.updated_at
-        ORDER BY b.hero_id, b.mood
-      `;
+      const builds = await prisma.build.findMany({
+        include: {
+          items: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDos: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDonts: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleTips: {
+            orderBy: { orderIndex: 'asc' }
+          }
+        },
+        orderBy: [
+          { heroId: 'asc' },
+          { mood: 'asc' }
+        ]
+      });
       
-      const result = await pool.query(buildsQuery);
-      
-      const builds = result.rows.map(build => ({
-        heroId: build.hero_id,
+      const formattedBuilds = builds.map(build => ({
+        heroId: build.heroId,
         mood: build.mood,
-        items: build.items.filter(item => item.id !== null),
+        items: build.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          cost: item.cost,
+          phase: item.phase,
+          priority: item.priority,
+          description: item.description
+        })),
         playstyle: {
-          dos: build.dos || [],
-          donts: build.donts || [],
-          tips: build.tips || []
+          dos: build.playstyleDos.map(doItem => doItem.doItem),
+          donts: build.playstyleDonts.map(dontItem => dontItem.dontItem),
+          tips: build.playstyleTips.map(tip => tip.tip)
         },
         gameplan: {
-          early: build.early_game,
-          mid: build.mid_game,
-          late: build.late_game
+          early: build.earlyGame,
+          mid: build.midGame,
+          late: build.lateGame
         }
       }));
       
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify(builds)
+        body: JSON.stringify(formattedBuilds)
       };
     }
 
@@ -176,60 +169,52 @@ export async function handler(event, context) {
     if (pathSegments[0] === 'heroes' && pathSegments[2] === 'builds' && pathSegments.length === 3) {
       const heroId = pathSegments[1];
       
-      const buildsQuery = `
-        SELECT 
-          b.*,
-          json_agg(
-            json_build_object(
-              'id', i.id,
-              'name', i.name,
-              'cost', i.cost,
-              'phase', i.phase,
-              'priority', i.priority,
-              'description', i.description
-            ) ORDER BY i.order_index
-          ) as items,
-          (
-            SELECT array_agg(pd.do_item ORDER BY pd.order_index)
-            FROM playstyle_dos pd WHERE pd.build_id = b.id
-          ) as dos,
-          (
-            SELECT array_agg(pdn.dont_item ORDER BY pdn.order_index)
-            FROM playstyle_donts pdn WHERE pdn.build_id = b.id
-          ) as donts,
-          (
-            SELECT array_agg(pt.tip ORDER BY pt.order_index)
-            FROM playstyle_tips pt WHERE pt.build_id = b.id
-          ) as tips
-        FROM builds b
-        LEFT JOIN items i ON b.id = i.build_id
-        WHERE b.hero_id = $1
-        GROUP BY b.id, b.hero_id, b.mood, b.early_game, b.mid_game, b.late_game, b.created_at, b.updated_at
-        ORDER BY b.mood
-      `;
+      const builds = await prisma.build.findMany({
+        where: { heroId },
+        include: {
+          items: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDos: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDonts: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleTips: {
+            orderBy: { orderIndex: 'asc' }
+          }
+        },
+        orderBy: { mood: 'asc' }
+      });
       
-      const result = await pool.query(buildsQuery, [heroId]);
-      
-      const builds = result.rows.map(build => ({
-        heroId: build.hero_id,
+      const formattedBuilds = builds.map(build => ({
+        heroId: build.heroId,
         mood: build.mood,
-        items: build.items.filter(item => item.id !== null),
+        items: build.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          cost: item.cost,
+          phase: item.phase,
+          priority: item.priority,
+          description: item.description
+        })),
         playstyle: {
-          dos: build.dos || [],
-          donts: build.donts || [],
-          tips: build.tips || []
+          dos: build.playstyleDos.map(doItem => doItem.doItem),
+          donts: build.playstyleDonts.map(dontItem => dontItem.dontItem),
+          tips: build.playstyleTips.map(tip => tip.tip)
         },
         gameplan: {
-          early: build.early_game,
-          mid: build.mid_game,
-          late: build.late_game
+          early: build.earlyGame,
+          mid: build.midGame,
+          late: build.lateGame
         }
       }));
       
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify(builds)
+        body: JSON.stringify(formattedBuilds)
       };
     }
 
@@ -238,40 +223,30 @@ export async function handler(event, context) {
       const heroId = pathSegments[1];
       const mood = pathSegments[3];
       
-      const buildQuery = `
-        SELECT 
-          b.*,
-          json_agg(
-            json_build_object(
-              'id', i.id,
-              'name', i.name,
-              'cost', i.cost,
-              'phase', i.phase,
-              'priority', i.priority,
-              'description', i.description
-            ) ORDER BY i.order_index
-          ) as items,
-          (
-            SELECT array_agg(pd.do_item ORDER BY pd.order_index)
-            FROM playstyle_dos pd WHERE pd.build_id = b.id
-          ) as dos,
-          (
-            SELECT array_agg(pdn.dont_item ORDER BY pdn.order_index)
-            FROM playstyle_donts pdn WHERE pdn.build_id = b.id
-          ) as donts,
-          (
-            SELECT array_agg(pt.tip ORDER BY pt.order_index)
-            FROM playstyle_tips pt WHERE pt.build_id = b.id
-          ) as tips
-        FROM builds b
-        LEFT JOIN items i ON b.id = i.build_id
-        WHERE b.hero_id = $1 AND b.mood = $2
-        GROUP BY b.id, b.hero_id, b.mood, b.early_game, b.mid_game, b.late_game, b.created_at, b.updated_at
-      `;
+      const build = await prisma.build.findUnique({
+        where: {
+          heroId_mood: {
+            heroId,
+            mood
+          }
+        },
+        include: {
+          items: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDos: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleDonts: {
+            orderBy: { orderIndex: 'asc' }
+          },
+          playstyleTips: {
+            orderBy: { orderIndex: 'asc' }
+          }
+        }
+      });
       
-      const result = await pool.query(buildQuery, [heroId, mood]);
-      
-      if (result.rows.length === 0) {
+      if (!build) {
         return {
           statusCode: 404,
           headers: corsHeaders,
@@ -279,20 +254,26 @@ export async function handler(event, context) {
         };
       }
       
-      const build = result.rows[0];
       const buildData = {
-        heroId: build.hero_id,
+        heroId: build.heroId,
         mood: build.mood,
-        items: build.items.filter(item => item.id !== null),
+        items: build.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          cost: item.cost,
+          phase: item.phase,
+          priority: item.priority,
+          description: item.description
+        })),
         playstyle: {
-          dos: build.dos || [],
-          donts: build.donts || [],
-          tips: build.tips || []
+          dos: build.playstyleDos.map(doItem => doItem.doItem),
+          donts: build.playstyleDonts.map(dontItem => dontItem.dontItem),
+          tips: build.playstyleTips.map(tip => tip.tip)
         },
         gameplan: {
-          early: build.early_game,
-          mid: build.mid_game,
-          late: build.late_game
+          early: build.earlyGame,
+          mid: build.midGame,
+          late: build.lateGame
         }
       };
       
@@ -317,5 +298,7 @@ export async function handler(event, context) {
       headers: corsHeaders,
       body: JSON.stringify({ error: 'Internal server error' })
     };
+  } finally {
+    await prisma.$disconnect();
   }
 } 

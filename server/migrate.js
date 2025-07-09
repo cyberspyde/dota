@@ -1,23 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import pool from './database.js';
+import { PrismaClient } from '@prisma/client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function compareFiles() {
-  const heroesPath = path.join(__dirname, '../src/data/heroes.ts');
-  const buildsPath = path.join(__dirname, '../src/data/builds.ts');
-
-  const heroesContent = await fs.readFile(heroesPath, 'utf8');
-  const buildsContent = await fs.readFile(buildsPath, 'utf8');
-
-  console.log('--- HEROES.TS ---');
-  console.log(heroesContent.substring(0, 500));
-  console.log('--- BUILDS.TS ---');
-  console.log(buildsContent.substring(0, 500));
-}
+// Create Prisma client instance
+const prisma = new PrismaClient();
 
 // Import data from existing files - we'll need to read these as text and parse
 async function loadHeroesData() {
@@ -102,12 +92,16 @@ async function loadBuildsData() {
 
 async function createSchema() {
   try {
-    // Drop triggers first to ensure idempotency
-    await pool.query('DROP TRIGGER IF EXISTS update_heroes_updated_at ON heroes;');
-    await pool.query('DROP TRIGGER IF EXISTS update_builds_updated_at ON builds;');
-
-    const schemaSQL = await fs.readFile(path.join(__dirname, '../supabase/migrations/20250708105422_morning_fog.sql'), 'utf8');
-    await pool.query(schemaSQL);
+    console.log('🚀 Pushing Prisma schema to database...');
+    await prisma.$executeRaw`DROP SCHEMA IF EXISTS public CASCADE`;
+    await prisma.$executeRaw`CREATE SCHEMA public`;
+    await prisma.$executeRaw`GRANT ALL ON SCHEMA public TO postgres`;
+    await prisma.$executeRaw`GRANT ALL ON SCHEMA public TO public`;
+    
+    // Push the schema to the database
+    const { execSync } = await import('child_process');
+    execSync('npx prisma db push', { stdio: 'inherit' });
+    
     console.log('✅ Database schema created successfully');
   } catch (error) {
     console.error('❌ Error creating schema:', error);
@@ -123,53 +117,45 @@ async function insertHeroes() {
     return;
   }
   
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
-    
     console.log('🚀 Checking for new heroes to insert...');
     let insertedCount = 0;
 
     for (const hero of heroes) {
-      const res = await client.query(
-        `INSERT INTO heroes (id, name, role, difficulty, description)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (id) DO NOTHING
-         RETURNING id`,
-        [hero.id, hero.name, hero.role, hero.difficulty, hero.description]
-      );
+      // Check if hero already exists
+      const existingHero = await prisma.hero.findUnique({
+        where: { id: hero.id }
+      });
 
-      if (res.rows.length > 0) {
+      if (!existingHero) {
+        // Insert hero
+        await prisma.hero.create({
+          data: {
+            id: hero.id,
+            name: hero.name,
+            role: hero.role,
+            difficulty: hero.difficulty,
+            description: hero.description,
+            moods: {
+              create: hero.moods.map(mood => ({ mood }))
+            },
+            strengths: {
+              create: hero.strengths.map((strength, index) => ({
+                strength,
+                orderIndex: index
+              }))
+            },
+            weaknesses: {
+              create: hero.weaknesses.map((weakness, index) => ({
+                weakness,
+                orderIndex: index
+              }))
+            }
+          }
+        });
         insertedCount++;
-        const heroId = res.rows[0].id;
-
-        for (const mood of hero.moods) {
-          await client.query(
-            `INSERT INTO hero_moods (hero_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [heroId, mood]
-          );
-        }
-
-        for (let i = 0; i < hero.strengths.length; i++) {
-          await client.query(
-            `INSERT INTO hero_strengths (hero_id, strength, order_index)
-             VALUES ($1, $2, $3)`,
-            [heroId, hero.strengths[i], i]
-          );
-        }
-
-        for (let i = 0; i < hero.weaknesses.length; i++) {
-          await client.query(
-            `INSERT INTO hero_weaknesses (hero_id, weakness, order_index)
-             VALUES ($1, $2, $3)`,
-            [heroId, hero.weaknesses[i], i]
-          );
-        }
       }
     }
-    
-    await client.query('COMMIT');
     
     if (insertedCount > 0) {
       console.log(`✅ Inserted ${insertedCount} new heroes successfully`);
@@ -177,11 +163,8 @@ async function insertHeroes() {
       console.log('✅ No new heroes to insert.');
     }
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('❌ Error inserting heroes:', error);
     throw error;
-  } finally {
-    client.release();
   }
 }
 
@@ -193,75 +176,72 @@ async function insertBuilds() {
     return;
   }
   
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
-    
     console.log('🚀 Checking for new builds to insert...');
     let insertedCount = 0;
     
     for (const build of builds) {
-      const buildResult = await client.query(
-        `INSERT INTO builds (hero_id, mood, early_game, mid_game, late_game)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (hero_id, mood) DO NOTHING
-         RETURNING id`,
-        [build.heroId, build.mood, build.gameplan.early, build.gameplan.mid, build.gameplan.late]
-      );
+      // Check if build already exists
+      const existingBuild = await prisma.build.findUnique({
+        where: {
+          heroId_mood: {
+            heroId: build.heroId,
+            mood: build.mood
+          }
+        }
+      });
       
-      if (buildResult.rows.length > 0) {
+      if (!existingBuild) {
+        // Insert build
+        await prisma.build.create({
+          data: {
+            heroId: build.heroId,
+            mood: build.mood,
+            earlyGame: build.gameplan.early,
+            midGame: build.gameplan.mid,
+            lateGame: build.gameplan.late,
+            items: {
+              create: build.items.map((item, index) => ({
+                name: item.name,
+                cost: item.cost,
+                phase: item.phase,
+                priority: item.priority,
+                description: item.description,
+                orderIndex: index
+              }))
+            },
+            playstyleDos: {
+              create: build.playstyle.dos.map((doItem, index) => ({
+                doItem,
+                orderIndex: index
+              }))
+            },
+            playstyleDonts: {
+              create: build.playstyle.donts.map((dontItem, index) => ({
+                dontItem,
+                orderIndex: index
+              }))
+            },
+            playstyleTips: {
+              create: build.playstyle.tips.map((tip, index) => ({
+                tip,
+                orderIndex: index
+              }))
+            }
+          }
+        });
         insertedCount++;
-        const buildId = buildResult.rows[0].id;
-      
-        for (let i = 0; i < build.items.length; i++) {
-          const item = build.items[i];
-          await client.query(
-            `INSERT INTO items (build_id, name, cost, phase, priority, description, order_index)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [buildId, item.name, item.cost, item.phase, item.priority, item.description, i]
-          );
-        }
-        
-        for (let i = 0; i < build.playstyle.dos.length; i++) {
-          await client.query(
-            `INSERT INTO playstyle_dos (build_id, do_item, order_index)
-             VALUES ($1, $2, $3)`,
-            [buildId, build.playstyle.dos[i], i]
-          );
-        }
-        
-        for (let i = 0; i < build.playstyle.donts.length; i++) {
-          await client.query(
-            `INSERT INTO playstyle_donts (build_id, dont_item, order_index)
-             VALUES ($1, $2, $3)`,
-            [buildId, build.playstyle.donts[i], i]
-          );
-        }
-        
-        for (let i = 0; i < build.playstyle.tips.length; i++) {
-          await client.query(
-            `INSERT INTO playstyle_tips (build_id, tip, order_index)
-             VALUES ($1, $2, $3)`,
-            [buildId, build.playstyle.tips[i], i]
-          );
-        }
       }
     }
     
-    await client.query('COMMIT');
-
     if (insertedCount > 0) {
       console.log(`✅ Inserted ${insertedCount} new builds successfully`);
     } else {
       console.log('✅ No new builds to insert.');
     }
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('❌ Error inserting builds:', error);
     throw error;
-  } finally {
-    client.release();
   }
 }
 
@@ -277,7 +257,7 @@ export async function migrate() {
   } catch (error) {
     console.error('💥 Migration failed:', error);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
     process.exit();
   }
 }
