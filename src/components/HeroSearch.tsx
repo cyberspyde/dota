@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Hero, Build } from '../services/api';
+import { Hero, Build } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Search, X, Star, Target, Shield, Zap, Sword } from 'lucide-react';
 

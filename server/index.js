@@ -20,14 +20,10 @@ app.get('/api/heroes', async (req, res) => {
     const heroesQuery = `
       SELECT 
         h.*,
-        array_agg(DISTINCT hm.mood) as moods,
-        array_agg(DISTINCT hs.strength ORDER BY hs.order_index) as strengths,
-        array_agg(DISTINCT hw.weakness ORDER BY hw.order_index) as weaknesses
+        (SELECT array_agg(m.mood) FROM (SELECT DISTINCT hm.mood FROM hero_moods hm WHERE hm.hero_id = h.id) m) as moods,
+        (SELECT array_agg(s.strength ORDER BY s.order_index) FROM hero_strengths s WHERE s.hero_id = h.id) as strengths,
+        (SELECT array_agg(w.weakness ORDER BY w.order_index) FROM hero_weaknesses w WHERE w.hero_id = h.id) as weaknesses
       FROM heroes h
-      LEFT JOIN hero_moods hm ON h.id = hm.hero_id
-      LEFT JOIN hero_strengths hs ON h.id = hs.hero_id
-      LEFT JOIN hero_weaknesses hw ON h.id = hw.hero_id
-      GROUP BY h.id, h.name, h.role, h.difficulty, h.description, h.created_at, h.updated_at
       ORDER BY h.name
     `;
     
@@ -59,15 +55,11 @@ app.get('/api/heroes/:id', async (req, res) => {
     const heroQuery = `
       SELECT 
         h.*,
-        array_agg(DISTINCT hm.mood) as moods,
-        array_agg(DISTINCT hs.strength ORDER BY hs.order_index) as strengths,
-        array_agg(DISTINCT hw.weakness ORDER BY hw.order_index) as weaknesses
+        (SELECT array_agg(m.mood) FROM (SELECT DISTINCT hm.mood FROM hero_moods hm WHERE hm.hero_id = h.id) m) as moods,
+        (SELECT array_agg(s.strength ORDER BY s.order_index) FROM hero_strengths s WHERE s.hero_id = h.id) as strengths,
+        (SELECT array_agg(w.weakness ORDER BY w.order_index) FROM hero_weaknesses w WHERE w.hero_id = h.id) as weaknesses
       FROM heroes h
-      LEFT JOIN hero_moods hm ON h.id = hm.hero_id
-      LEFT JOIN hero_strengths hs ON h.id = hs.hero_id
-      LEFT JOIN hero_weaknesses hw ON h.id = hw.hero_id
       WHERE h.id = $1
-      GROUP BY h.id, h.name, h.role, h.difficulty, h.description, h.created_at, h.updated_at
     `;
     
     const result = await pool.query(heroQuery, [id]);

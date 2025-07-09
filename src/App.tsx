@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Mood } from './types';
-import { apiService, Hero, Build } from './services/api';
+import { Mood, Hero, Build } from './types';
+import { apiService } from './services/api';
 import { MoodSelector } from './components/MoodSelector';
 import { HeroCard } from './components/HeroCard';
 import { BuildGuide } from './components/BuildGuide';
@@ -106,6 +106,8 @@ function AppContent() {
   }
 
   if (error) {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
         <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
@@ -119,9 +121,16 @@ function AppContent() {
             >
               Try Again
             </button>
-            <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-              Make sure to run: <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">npm run dev:server</code>
-            </div>
+            {isDevelopment ? (
+              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                Make sure to run: <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">npm run dev:server</code>
+              </div>
+            ) : (
+              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                <p>This might be a temporary issue. Please try again in a few moments.</p>
+                <p className="mt-2">If the problem persists, check the Netlify function logs.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

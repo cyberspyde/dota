@@ -1,38 +1,6 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+import { Hero, Build } from '../types';
 
-export interface Hero {
-  id: string;
-  name: string;
-  role: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  description: string;
-  moods: string[];
-  strengths: string[];
-  weaknesses: string[];
-}
-
-export interface Build {
-  heroId: string;
-  mood: string;
-  items: {
-    id: number;
-    name: string;
-    cost: number;
-    phase: 'Early' | 'Mid' | 'Late';
-    priority: 'Core' | 'Situational' | 'Luxury';
-    description: string;
-  }[];
-  playstyle: {
-    dos: string[];
-    donts: string[];
-    tips: string[];
-  };
-  gameplan: {
-    early: string;
-    mid: string;
-    late: string;
-  };
-}
+const API_BASE_URL = '/.netlify/functions/api';
 
 class ApiService {
   private async fetchWithErrorHandling<T>(url: string): Promise<T> {

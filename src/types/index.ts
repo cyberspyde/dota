@@ -10,7 +10,7 @@ export interface Hero {
 }
 
 export interface Item {
-  id: string;
+  id: string | number;
   name: string;
   cost: number;
   phase: 'Early' | 'Mid' | 'Late';
