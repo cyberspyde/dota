@@ -1,0 +1,20 @@
+{
+  "id": "invoker",
+  "name": "Invoker",
+  "role": "Mid",
+  "difficulty": "Hard",
+  "moods": ["creative", "experimental"],
+  "description": "A versatile mage with countless spell combinations and high skill ceiling",
+  "strengths": [
+    "Versatile spell combinations",
+    "High magical damage output",
+    "Strong at all game stages",
+    "Great scaling potential"
+  ],
+  "weaknesses": [
+    "Very complex mechanics",
+    "Mana hungry early game",
+    "Requires extensive practice",
+    "Vulnerable to gap closers"
+  ]
+}

@@ -9,7 +9,8 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Gamepad2, Crown, RefreshCw, Search } from 'lucide-react';
+import { ConnectionStatus } from './components/ConnectionStatus';
+import { Gamepad2, Crown, RefreshCw, Search, Zap, Activity } from 'lucide-react';
 
 function AppContent() {
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
@@ -40,7 +41,7 @@ function AppContent() {
       setBuilds(buildsData);
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Failed to load data. Please make sure the server is running.');
+      setError('Failed to load data. Please check your internet connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -94,166 +95,192 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
-        <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-lg text-gray-600 dark:text-gray-400">Loading Dota 2 data...</p>
+      <div className="loading-screen">
+        <div>
+          <div className="loading-spinner">
+            <div className="spinner spinner-1"></div>
+            <div className="spinner spinner-2"></div>
           </div>
+          <p className="loading-text">
+            <Activity className="inline mr-2" size={20} />
+            Initializing Dota 2 Neural Network...
+          </p>
         </div>
       </div>
     );
   }
 
   if (error) {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
-        <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="text-6xl mb-4">⚠️</div>
-            <h2 className="text-2xl font-bold mb-4 text-red-600 dark:text-red-400">Connection Error</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-            <button
-              onClick={loadData}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-            >
-              Try Again
-            </button>
-            {isDevelopment ? (
-              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                Make sure to run: <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">npm run dev:server</code>
-              </div>
-            ) : (
-              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                <p>This might be a temporary issue. Please try again in a few moments.</p>
-                <p className="mt-2">If the problem persists, check the Netlify function logs.</p>
-              </div>
-            )}
-          </div>
+      <div className="error-screen">
+        <div className="error-card card">
+          <div className="error-icon">⚠️</div>
+          <h2 className="error-title">CONNECTION ERROR</h2>
+          <p className="error-message">{error}</p>
+          <button onClick={loadData} className="btn btn-primary">
+            <Zap size={16} />
+            RETRY CONNECTION
+          </button>
         </div>
       </div>
     );
   }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
-      <div className="container mx-auto px-4 py-8">
-        <header className="text-center mb-12">
-          <div className="flex items-center justify-center space-x-2 mb-8">
+    <div style={{ minHeight: '100vh', paddingTop: '5rem' }}>
+      <ConnectionStatus />
+      
+      <div className="container">
+        <header className="header">
+          <div className="header-controls">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center space-x-1 lg:space-x-2 px-2 lg:px-3 py-2 rounded-lg bg-white/10 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors"
+              className="btn btn-secondary"
               title={t('hero.search.button') || 'Search Heroes'}
             >
-              <Search size={16} className="text-blue-600 dark:text-blue-400 lg:w-[18px] lg:h-[18px]" />
-              <span className="text-xs lg:text-sm font-medium text-gray-800 dark:text-gray-200 hidden sm:inline">
-                {t('hero.search.button') || 'Search'}
-              </span>
+              <Search size={16} />
+              <span>SEARCH</span>
             </button>
             <LanguageSelector />
             <ThemeToggle />
           </div>
           
-          <div className="flex items-center justify-center space-x-3 mb-6">
-            <Gamepad2 size={40} className="text-blue-600 dark:text-blue-400 lg:w-12 lg:h-12" />
-            <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-              {t('app.title')}
-            </h1>
-            <Crown size={40} className="text-blue-600 dark:text-blue-400 lg:w-12 lg:h-12" />
+          <div className="header-title">
+            <Gamepad2 size={48} style={{ color: '#00ff88' }} />
+            <h1 className="app-title">{t('app.title')}</h1>
+            <Crown size={48} style={{ color: '#ffff00' }} />
+          </div>
+          
+          <div className="subtitle">
+            {">> NEURAL NETWORK ACTIVE // HERO ANALYSIS PROTOCOL ONLINE <<"}
           </div>
         </header>
 
-        <div className="max-w-6xl mx-auto">
-          <HeroSearch 
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
-            onHeroSelect={handleHeroSelect}
-            heroes={heroes}
-            builds={builds}
-          />
-          
-          <div className="mb-8">
-            <h2 className="text-xl lg:text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">{t('mood.title')}</h2>
-            <MoodSelector selectedMood={selectedMood} onMoodSelect={handleMoodSelect} />
-          </div>
+        <HeroSearch 
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          onHeroSelect={handleHeroSelect}
+          heroes={heroes}
+          builds={builds}
+        />
+        
+        <div style={{ marginBottom: '3rem' }}>
+          <h2 style={{ 
+            fontSize: '2rem', 
+            fontWeight: 'bold', 
+            marginBottom: '1.5rem', 
+            textAlign: 'center',
+            color: '#00d4ff',
+            textShadow: '0 0 20px rgba(0, 212, 255, 0.5)'
+          }}>
+            {t('mood.title')}
+          </h2>
+          <MoodSelector selectedMood={selectedMood} onMoodSelect={handleMoodSelect} />
+        </div>
 
-          {selectedHero && (
-            <div className="space-y-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
-                <h2 className="text-xl lg:text-2xl font-bold text-gray-800 dark:text-white">
-                  {selectedMood ? t('hero.recommendation') : t('hero.selected') || 'Selected Hero'}
-                </h2>
-                <div className="flex items-center space-x-2">
-                  {selectedMood && (
-                    <button
-                      onClick={handleReroll}
-                      className="flex items-center space-x-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-600 dark:text-blue-400 px-3 py-2 lg:px-4 lg:py-2 rounded-lg transition-colors border border-blue-300 dark:border-blue-600 text-sm lg:text-base"
-                    >
-                      <RefreshCw size={16} className="lg:w-[18px] lg:h-[18px]" />
-                      <span>{t('hero.reroll')}</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setIsSearchOpen(true)}
-                    className="flex items-center space-x-2 bg-green-500/20 hover:bg-green-500/30 text-green-600 dark:text-green-400 px-3 py-2 lg:px-4 lg:py-2 rounded-lg transition-colors border border-green-300 dark:border-green-600 text-sm lg:text-base"
-                  >
-                    <Search size={16} className="lg:w-[18px] lg:h-[18px]" />
-                    <span>{t('hero.search.change') || 'Change Hero'}</span>
+        {selectedHero && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap',
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <h2 style={{ 
+                fontSize: '2rem', 
+                fontWeight: 'bold',
+                color: '#00ff88',
+                textShadow: '0 0 20px rgba(0, 255, 136, 0.5)'
+              }}>
+                {selectedMood ? t('hero.recommendation') : t('hero.selected') || 'SELECTED HERO'}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {selectedMood && (
+                  <button onClick={handleReroll} className="btn btn-primary">
+                    <RefreshCw size={16} />
+                    REROLL
                   </button>
+                )}
+                <button onClick={() => setIsSearchOpen(true)} className="btn btn-secondary">
+                  <Search size={16} />
+                  CHANGE
+                </button>
+              </div>
+            </div>
+            
+            <HeroCard hero={selectedHero} />
+
+            {selectedBuild && (
+              <div>
+                <h2 style={{ 
+                  fontSize: '2rem', 
+                  fontWeight: 'bold', 
+                  marginBottom: '1.5rem',
+                  color: '#8b5cf6',
+                  textShadow: '0 0 20px rgba(139, 92, 246, 0.5)'
+                }}>
+                  {t('build.title')}
+                </h2>
+                <BuildGuide build={selectedBuild} />
+              </div>
+            )}
+            
+            {currentHero && availableBuilds.length > 0 && !selectedMood && (
+              <div className="card" style={{ padding: '1.5rem', borderColor: 'rgba(255, 255, 0, 0.5)' }}>
+                <h3 style={{ 
+                  fontSize: '1.25rem', 
+                  fontWeight: 'bold',
+                  color: '#ffff00',
+                  marginBottom: '1rem'
+                }}>
+                  {t('build.selectMood') || 'SELECT COMBAT PROTOCOL'}
+                </h3>
+                <div style={{ 
+                  fontSize: '0.875rem',
+                  color: 'rgba(255, 255, 0, 0.8)',
+                  marginBottom: '1rem',
+                  fontFamily: 'Fira Code, monospace'
+                }}>
+                  {t('build.availableFor') || 'Available protocols for this hero:'}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  {availableBuilds.map(build => (
+                    <button
+                      key={build.mood}
+                      onClick={() => setSelectedMood(build.mood)}
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                    >
+                      {t(`mood.${build.mood}`) || build.mood}
+                    </button>
+                  ))}
                 </div>
               </div>
-              
-              <HeroCard hero={selectedHero} />
+            )}
+            
+            {currentHero && availableBuilds.length === 0 && (
+              <div className="card" style={{ padding: '1.5rem', borderColor: 'rgba(255, 102, 0, 0.5)' }}>
+                <p style={{ 
+                  color: '#ff6600',
+                  fontFamily: 'Fira Code, monospace',
+                  textAlign: 'center'
+                }}>
+                  {t('build.noBuildForHero') || 'NO BUILD PROTOCOLS AVAILABLE FOR THIS HERO'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
-              {selectedBuild && (
-                <div>
-                  <h2 className="text-xl lg:text-2xl font-bold mb-4 text-gray-800 dark:text-white">{t('build.title')}</h2>
-                  <BuildGuide build={selectedBuild} />
-                </div>
-              )}
-              
-              {currentHero && availableBuilds.length > 0 && !selectedMood && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-3">
-                    {t('build.selectMood') || 'Select a mood to see build guide'}
-                  </h3>
-                  <div className="text-sm text-blue-700 dark:text-blue-300 mb-3">
-                    {t('build.availableFor') || 'Available builds for this hero:'}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {availableBuilds.map(build => (
-                      <button
-                        key={build.mood}
-                        onClick={() => setSelectedMood(build.mood)}
-                        className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-300 dark:border-blue-600 text-sm font-medium transition-colors"
-                      >
-                        {t(`mood.${build.mood}`) || build.mood}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {currentHero && availableBuilds.length === 0 && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-center">
-                  <p className="text-yellow-800 dark:text-yellow-200">
-                    {t('build.noBuildForHero') || 'No build guides available for this hero yet.'}
-                  </p>
-                </div>
-              )}
+        {!selectedMood && !currentHero && (
+          <div className="welcome-screen">
+            <div className="welcome-icon">🎮</div>
+            <div className="welcome-message">
+              {t('welcome.message') || 'SELECT YOUR COMBAT MOOD TO BEGIN HERO ANALYSIS'}
             </div>
-          )}
-
-          {!selectedMood && !currentHero && (
-            <div className="text-center py-8 lg:py-12 px-4">
-              <div className="text-4xl lg:text-6xl mb-4">{t('welcome.title')}</div>
-              <p className="text-base lg:text-xl text-gray-600 dark:text-gray-400">
-                {t('welcome.message')}
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

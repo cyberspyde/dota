@@ -30,7 +30,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    document.documentElement.className = theme;
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+    
+    // Update body background for light theme
+    if (theme === 'light') {
+      document.body.style.background = 'linear-gradient(135deg, #f0f0f5 0%, #e6e6fa 50%, #ddd8f0 100%)';
+      document.body.style.color = '#1a1a2e';
+    } else {
+      document.body.style.background = 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%)';
+      document.body.style.color = '#ffffff';
+    }
   }, [theme]);
 
   return (

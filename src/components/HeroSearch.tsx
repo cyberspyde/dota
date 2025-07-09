@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Hero, Build } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Search, X, Star, Target, Shield, Zap, Sword } from 'lucide-react';
+import { Search, X, Star, Target, Shield, Zap, Sword, Filter } from 'lucide-react';
 
 interface HeroSearchProps {
   onHeroSelect: (hero: Hero) => void;
@@ -12,9 +12,9 @@ interface HeroSearchProps {
 }
 
 const difficultyConfig = {
-  Easy: { color: 'text-green-600 dark:text-green-400', stars: 1 },
-  Medium: { color: 'text-yellow-600 dark:text-yellow-400', stars: 2 },
-  Hard: { color: 'text-red-600 dark:text-red-400', stars: 3 }
+  Easy: { color: '#00ff88', stars: 1 },
+  Medium: { color: '#ffff00', stars: 2 },
+  Hard: { color: '#ff4444', stars: 3 }
 };
 
 const roleIcons = {
@@ -38,7 +38,7 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({ onHeroSelect, isOpen, on
       
       return matchesSearch && matchesRole && matchesDifficulty;
     });
-  }, [searchQuery, selectedRole, selectedDifficulty]);
+  }, [searchQuery, selectedRole, selectedDifficulty, heroes]);
 
   const handleHeroClick = (hero: Hero) => {
     onHeroSelect(hero);
@@ -54,65 +54,156 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({ onHeroSelect, isOpen, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        <div className="p-4 lg:p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl lg:text-2xl font-bold text-gray-800 dark:text-white">
-              {t('hero.search.title') || 'Hero Search'}
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(4px)',
+      zIndex: 50,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem'
+    }}>
+      <div className="card" style={{
+        width: '100%',
+        maxWidth: '72rem',
+        maxHeight: '90vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        <div style={{
+          padding: '1.5rem',
+          borderBottom: '1px solid rgba(0, 212, 255, 0.3)'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1.5rem'
+          }}>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              color: '#00d4ff',
+              textShadow: '0 0 20px rgba(0, 212, 255, 0.5)',
+              fontFamily: 'Fira Code, monospace'
+            }}>
+              {t('hero.search.title')?.toUpperCase() || 'HERO DATABASE'}
             </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <X size={20} className="text-gray-600 dark:text-gray-400" />
+            <button onClick={onClose} className="btn btn-secondary" style={{ padding: '0.5rem' }}>
+              <X size={20} />
             </button>
           </div>
 
-          <div className="space-y-4">
-            <div className="relative">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={20} style={{
+                position: 'absolute',
+                left: '0.75rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#00d4ff'
+              }} />
               <input
                 type="text"
-                placeholder={t('hero.search.placeholder') || 'Search heroes...'}
+                placeholder={t('hero.search.placeholder')?.toUpperCase() || 'SEARCH HEROES...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{
+                  width: '100%',
+                  paddingLeft: '2.75rem',
+                  paddingRight: '1rem',
+                  paddingTop: '0.75rem',
+                  paddingBottom: '0.75rem',
+                  background: 'rgba(26, 26, 46, 0.8)',
+                  border: '1px solid rgba(0, 212, 255, 0.5)',
+                  color: 'white',
+                  fontFamily: 'Fira Code, monospace',
+                  fontSize: '0.875rem',
+                  borderRadius: '4px',
+                  outline: 'none',
+                  transition: 'all 0.3s ease'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#00d4ff';
+                  e.target.style.boxShadow = '0 0 20px rgba(0, 212, 255, 0.5)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(0, 212, 255, 0.5)';
+                  e.target.style.boxShadow = 'none';
+                }}
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              >
-                <option value="">{t('hero.search.allRoles') || 'All Roles'}</option>
-                {roles.map(role => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Filter size={16} style={{ color: '#00d4ff' }} />
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  style={{
+                    background: 'rgba(26, 26, 46, 0.8)',
+                    border: '1px solid rgba(0, 212, 255, 0.5)',
+                    color: 'white',
+                    fontFamily: 'Fira Code, monospace',
+                    fontSize: '0.875rem',
+                    padding: '0.5rem',
+                    borderRadius: '4px',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="">{t('hero.search.allRoles')?.toUpperCase() || 'ALL ROLES'}</option>
+                  {roles.map(role => (
+                    <option key={role} value={role}>{role.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
 
               <select
                 value={selectedDifficulty}
                 onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                style={{
+                  background: 'rgba(26, 26, 46, 0.8)',
+                  border: '1px solid rgba(0, 212, 255, 0.5)',
+                  color: 'white',
+                  fontFamily: 'Fira Code, monospace',
+                  fontSize: '0.875rem',
+                  padding: '0.5rem',
+                  borderRadius: '4px',
+                  outline: 'none'
+                }}
               >
-                <option value="">{t('hero.search.allDifficulties') || 'All Difficulties'}</option>
+                <option value="">{t('hero.search.allDifficulties')?.toUpperCase() || 'ALL DIFFICULTIES'}</option>
                 {difficulties.map(difficulty => (
-                  <option key={difficulty} value={difficulty}>{difficulty}</option>
+                  <option key={difficulty} value={difficulty}>{difficulty.toUpperCase()}</option>
                 ))}
               </select>
             </div>
           </div>
         </div>
 
-        <div className="p-4 lg:p-6 max-h-[60vh] overflow-y-auto">
-          <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            {filteredHeroes.length} {t('hero.search.heroesFound') || 'heroes found'}
+        <div style={{
+          padding: '1.5rem',
+          maxHeight: '60vh',
+          overflowY: 'auto',
+          flex: 1
+        }}>
+          <div style={{
+            fontSize: '0.875rem',
+            color: '#00d4ff',
+            fontFamily: 'Fira Code, monospace',
+            marginBottom: '1rem'
+          }}>
+            {filteredHeroes.length} {t('hero.search.heroesFound')?.toUpperCase() || 'HEROES FOUND'}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '1rem'
+          }}>
             {filteredHeroes.map(hero => {
               const RoleIcon = roleIcons[hero.role as keyof typeof roleIcons] || Target;
               const difficultySettings = difficultyConfig[hero.difficulty];
@@ -122,30 +213,73 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({ onHeroSelect, isOpen, on
                 <div
                   key={hero.id}
                   onClick={() => handleHeroClick(hero)}
-                  className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors border-2 border-transparent hover:border-blue-500/30"
+                  style={{
+                    background: 'rgba(5, 5, 8, 0.5)',
+                    border: '1px solid rgba(0, 212, 255, 0.3)',
+                    padding: '1rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(0, 212, 255, 0.6)';
+                    e.currentTarget.style.background = 'rgba(5, 5, 8, 0.7)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(0, 212, 255, 0.3)';
+                    e.currentTarget.style.background = 'rgba(5, 5, 8, 0.5)';
+                  }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <RoleIcon size={16} className="text-blue-600 dark:text-blue-400" />
-                      <h3 className="font-semibold text-gray-800 dark:text-white text-sm">{hero.name}</h3>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <RoleIcon size={20} style={{ color: '#00d4ff' }} />
+                      <h3 style={{
+                        fontWeight: 'bold',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontFamily: 'Fira Code, monospace'
+                      }}>
+                        {hero.name.toUpperCase()}
+                      </h3>
                     </div>
-                    <div className="flex items-center space-x-1">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       {[...Array(3)].map((_, i) => (
                         <Star
                           key={i}
-                          size={12}
-                          className={i < difficultySettings.stars ? difficultySettings.color : 'text-gray-400 dark:text-gray-600'}
+                          size={10}
+                          style={{
+                            color: i < difficultySettings.stars ? difficultySettings.color : 'rgba(128, 128, 128, 0.5)'
+                          }}
                           fill={i < difficultySettings.stars ? 'currentColor' : 'none'}
                         />
                       ))}
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600 dark:text-gray-400">{hero.role}</span>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.75rem',
+                    fontFamily: 'Fira Code, monospace'
+                  }}>
+                    <span style={{ color: '#00d4ff' }}>{hero.role.toUpperCase()}</span>
                     {hasBuild && (
-                      <span className="bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-1 rounded-full text-xs font-medium">
-                        {t('hero.search.hasBuild') || 'Has Build'}
+                      <span style={{
+                        background: 'rgba(0, 255, 136, 0.2)',
+                        color: '#00ff88',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        border: '1px solid rgba(0, 255, 136, 0.5)'
+                      }}>
+                        BUILD
                       </span>
                     )}
                   </div>
@@ -155,8 +289,13 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({ onHeroSelect, isOpen, on
           </div>
 
           {filteredHeroes.length === 0 && (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              {t('hero.search.noResults') || 'No heroes found matching your search criteria.'}
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem 0',
+              color: 'rgba(255, 255, 255, 0.6)',
+              fontFamily: 'Fira Code, monospace'
+            }}>
+              {t('hero.search.noResults')?.toUpperCase() || 'NO HEROES FOUND MATCHING CRITERIA'}
             </div>
           )}
         </div>

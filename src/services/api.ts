@@ -4,50 +4,53 @@ class ApiService {
   private baseUrl: string;
 
   constructor() {
-    // Use Vercel API endpoints
-    // For production, use Vercel's VERCEL_URL or custom VITE_API_URL
-    this.baseUrl = process.env.NODE_ENV === 'production' 
-      ? (import.meta.env.VITE_API_URL || `https://${import.meta.env.VITE_VERCEL_URL || 'your-vercel-app.vercel.app'}/api`)
-      : 'http://localhost:3000/api';
+    // Use a relative path for API calls. This is more robust for local development
+    // and works seamlessly in production.
+    this.baseUrl = '/api';
   }
 
-  private async fetchWithErrorHandling<T>(url: string): Promise<T> {
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
+  private async request<T>(endpoint: string): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    console.log(`Making request to: ${url}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API Error: ${response.status} - ${errorText}`);
+      throw new Error(`API Error: ${response.status} - ${response.statusText}`);
     }
+
+    return response.json();
   }
 
   async getHeroes(): Promise<Hero[]> {
-    return this.fetchWithErrorHandling<Hero[]>(`${this.baseUrl}/heroes`);
+    return this.request<Hero[]>('/heroes');
   }
 
   async getHero(id: string): Promise<Hero> {
-    return this.fetchWithErrorHandling<Hero>(`${this.baseUrl}/heroes/${id}`);
+    return this.request<Hero>(`/heroes/${id}`);
   }
 
   async getBuilds(): Promise<Build[]> {
-    return this.fetchWithErrorHandling<Build[]>(`${this.baseUrl}/builds`);
+    return this.request<Build[]>('/builds');
   }
 
   async getHeroBuilds(heroId: string): Promise<Build[]> {
-    return this.fetchWithErrorHandling<Build[]>(`${this.baseUrl}/heroes/${heroId}/builds`);
+    return this.request<Build[]>(`/heroes/${heroId}/builds`);
   }
 
   async getBuild(heroId: string, mood: string): Promise<Build> {
-    return this.fetchWithErrorHandling<Build>(`${this.baseUrl}/heroes/${heroId}/builds/${mood}`);
+    return this.request<Build>(`/heroes/${heroId}/builds/${mood}`);
   }
 
   async checkHealth(): Promise<{ status: string; timestamp: string }> {
-    return this.fetchWithErrorHandling<{ status: string; timestamp: string }>(`${this.baseUrl}/health`);
+    return this.request<{ status: string; timestamp: string }>('/health');
   }
 }
 

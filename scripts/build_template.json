@@ -1,0 +1,82 @@
+{
+  "heroId": "invoker",
+  "mood": "creative",
+  "items": [
+    {
+      "id": "boots",
+      "name": "Boots of Speed",
+      "cost": 500,
+      "phase": "Early",
+      "priority": "Core",
+      "description": "Basic mobility for positioning"
+    },
+    {
+      "id": "null-talisman",
+      "name": "Null Talisman",
+      "cost": 505,
+      "phase": "Early",
+      "priority": "Core",
+      "description": "Early mana and damage"
+    },
+    {
+      "id": "power-treads",
+      "name": "Power Treads",
+      "cost": 1400,
+      "phase": "Early",
+      "priority": "Core",
+      "description": "Attack speed and stat switching"
+    },
+    {
+      "id": "orchid",
+      "name": "Orchid Malevolence",
+      "cost": 3475,
+      "phase": "Mid",
+      "priority": "Core",
+      "description": "Silence and damage amplification"
+    },
+    {
+      "id": "aghs",
+      "name": "Aghanim's Scepter",
+      "cost": 4200,
+      "phase": "Mid",
+      "priority": "Core",
+      "description": "Additional spell charges"
+    },
+    {
+      "id": "octarine",
+      "name": "Octarine Core",
+      "cost": 5275,
+      "phase": "Late",
+      "priority": "Luxury",
+      "description": "Cooldown reduction and spell lifesteal"
+    }
+  ],
+  "playstyle": {
+    "dos": [
+      "Practice spell combinations in demo mode",
+      "Use Quas for regeneration between fights",
+      "Invoke spells before fights begin",
+      "Position safely behind your team",
+      "Learn efficient spell rotations"
+    ],
+    "donts": [
+      "Don't waste mana on unnecessary spells",
+      "Don't forget to invoke new spells",
+      "Don't engage without proper positioning",
+      "Don't neglect farming between fights",
+      "Don't panic and misclick spells"
+    ],
+    "tips": [
+      "Bind invoke to an easily accessible key",
+      "Learn at least 5 common spell combinations",
+      "Use Forge Spirits to farm and scout",
+      "Cold Snap is excellent for ganking",
+      "Refresher Orb doubles your team fight impact"
+    ]
+  },
+  "gameplan": {
+    "early": "Focus on farming and getting levels. Practice invoking spells and use Quas for sustain. Avoid unnecessary fights until you have core items.",
+    "mid": "Get Orchid for ganking potential. Start participating in team fights with your spell combinations. Use Forge Spirits to farm efficiently.",
+    "late": "Become a major team fight controller with Aghanim's Scepter. Use advanced spell combinations to devastate enemy teams."
+  }
+}

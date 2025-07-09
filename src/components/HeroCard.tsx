@@ -1,16 +1,16 @@
 import React from 'react';
 import { Hero } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Star, Target, Shield, Zap, Sword } from 'lucide-react';
+import { Star, Target, Shield, Zap, Sword, Plus, Minus } from 'lucide-react';
 
 interface HeroCardProps {
   hero: Hero;
 }
 
 const difficultyConfig = {
-  Easy: { color: 'text-green-600 dark:text-green-400', stars: 1 },
-  Medium: { color: 'text-yellow-600 dark:text-yellow-400', stars: 2 },
-  Hard: { color: 'text-red-600 dark:text-red-400', stars: 3 }
+  Easy: { color: '#00ff88', stars: 1 },
+  Medium: { color: '#ffff00', stars: 2 },
+  Hard: { color: '#ff4444', stars: 3 }
 };
 
 const roleIcons = {
@@ -37,49 +37,83 @@ export const HeroCard: React.FC<HeroCardProps> = ({ hero }) => {
   const heroDifficulty = getLocalizedText(`difficulty.${hero.difficulty}`, hero.difficulty);
 
   return (
-    <div className="bg-white/80 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 lg:p-6 hover:border-gray-300 dark:hover:border-gray-600 transition-colors backdrop-blur-sm mx-4 lg:mx-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
-        <div className="flex items-center space-x-3">
-          <RoleIcon size={20} className="text-blue-600 dark:text-blue-400 lg:w-6 lg:h-6" />
+    <div className="hero-card card">
+      <div className="hero-header">
+        <div className="hero-info">
+          <div style={{ position: 'relative' }}>
+            <RoleIcon size={32} style={{ color: '#00d4ff' }} />
+          </div>
           <div>
-            <h3 className="text-lg lg:text-xl font-bold text-gray-800 dark:text-white">{heroName}</h3>
-            <p className="text-sm lg:text-base text-gray-600 dark:text-gray-400">{heroRole}</p>
+            <h3 className="hero-name">{heroName.toUpperCase()}</h3>
+            <p className="hero-role">{heroRole.toUpperCase()}</p>
           </div>
         </div>
-        <div className="flex items-center space-x-1">
-          {[...Array(3)].map((_, i) => (
-            <Star
-              key={i}
-              size={14}
-              className={i < difficultySettings.stars ? difficultySettings.color : 'text-gray-400 dark:text-gray-600'}
-              fill={i < difficultySettings.stars ? 'currentColor' : 'none'}
-            />
-          ))}
-          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({heroDifficulty})</span>
+        
+        <div className="hero-difficulty">
+          <div className="stars">
+            {[...Array(3)].map((_, i) => (
+              <Star
+                key={i}
+                size={16}
+                className={`star ${i < difficultySettings.stars ? 'active' : 'inactive'}`}
+                fill={i < difficultySettings.stars ? 'currentColor' : 'none'}
+                style={{ color: i < difficultySettings.stars ? difficultySettings.color : 'rgba(128, 128, 128, 0.5)' }}
+              />
+            ))}
+          </div>
+          <span style={{ 
+            fontSize: '0.875rem',
+            color: 'rgba(255, 255, 255, 0.6)',
+            fontFamily: 'Fira Code, monospace'
+          }}>
+            [{heroDifficulty.toUpperCase()}]
+          </span>
         </div>
       </div>
       
-      <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300 mb-4">{heroDescription}</p>
+      <div className="hero-description">
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.8)',
+          fontSize: '0.875rem',
+          fontFamily: 'Fira Code, monospace',
+          lineHeight: '1.6'
+        }}>
+          {heroDescription}
+        </p>
+      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h4 className="text-sm lg:text-base text-green-600 dark:text-green-400 font-semibold mb-2">{t('hero.strengths')}</h4>
-          <ul className="space-y-1">
+      <div className="hero-stats">
+        <div className="stat-section strengths">
+          <h4>
+            <Plus size={16} />
+            {t('hero.strengths').toUpperCase()}
+          </h4>
+          <ul className="stat-list">
             {hero.strengths.map((strength, index) => {
               const localizedStrength = getLocalizedText(`hero.${hero.id}.strengths.${index}`, strength);
               return (
-                <li key={index} className="text-sm text-gray-700 dark:text-gray-300">• {localizedStrength}</li>
+                <li key={index} className="stat-item">
+                  <span className="stat-marker">+</span>
+                  {localizedStrength}
+                </li>
               );
             })}
           </ul>
         </div>
-        <div>
-          <h4 className="text-sm lg:text-base text-red-600 dark:text-red-400 font-semibold mb-2">{t('hero.weaknesses')}</h4>
-          <ul className="space-y-1">
+        
+        <div className="stat-section weaknesses">
+          <h4>
+            <Minus size={16} />
+            {t('hero.weaknesses').toUpperCase()}
+          </h4>
+          <ul className="stat-list">
             {hero.weaknesses.map((weakness, index) => {
               const localizedWeakness = getLocalizedText(`hero.${hero.id}.weaknesses.${index}`, weakness);
               return (
-                <li key={index} className="text-sm text-gray-700 dark:text-gray-300">• {localizedWeakness}</li>
+                <li key={index} className="stat-item">
+                  <span className="stat-marker">-</span>
+                  {localizedWeakness}
+                </li>
               );
             })}
           </ul>
