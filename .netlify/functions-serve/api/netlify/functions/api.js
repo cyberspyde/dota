@@ -11001,7 +11001,7 @@ var require_version4 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.version = void 0;
-    exports2.version = "2.50.3";
+    exports2.version = "2.50.5";
   }
 });
 
@@ -14947,36 +14947,90 @@ __export(api_exports, {
 });
 module.exports = __toCommonJS(api_exports);
 var import_supabase_js = __toESM(require_main5(), 1);
+
+// netlify/functions/scoring.ts
+var BASE_SCORE = 3;
+var ROLE_MOOD_MODIFIERS = {
+  Carry: { aggressive: 0.5, defensive: -0.2, experimental: 0.1, creative: 0.1, chaos: 0.2 },
+  Support: { aggressive: -0.2, defensive: 0.5, experimental: 0.2, creative: 0.3, chaos: 0.1 },
+  Mid: { aggressive: 0.4, defensive: 0, experimental: 0.3, creative: 0.3, chaos: 0.4 },
+  Initiator: { aggressive: 0.5, defensive: 0.1, experimental: 0.1, creative: 0.2, chaos: 0.5 }
+};
+var CORE_ITEM_BONUS = 0.5;
+var SITUATIONAL_ITEM_BONUS = 0.2;
+var LUXURY_ITEM_BONUS = 0.3;
+var DESCRIPTION_LENGTH_BONUS = 0.1;
+var PLAYSTYLE_COMPLETENESS_BONUS = 0.3;
+var GAMEPLAN_COMPLETENESS_BONUS = 0.2;
+function calculateBuildScore(hero, build) {
+  let score = BASE_SCORE;
+  const roleModifiers = ROLE_MOOD_MODIFIERS[hero.role] || {};
+  score += roleModifiers[build.mood] || 0;
+  const coreItems = build.items.filter((item) => item.priority === "Core").length;
+  const situationalItems = build.items.filter((item) => item.priority === "Situational").length;
+  const luxuryItems = build.items.filter((item) => item.priority === "Luxury").length;
+  if (coreItems >= 3) {
+    score += CORE_ITEM_BONUS;
+  }
+  if (situationalItems > 0) {
+    score += SITUATIONAL_ITEM_BONUS;
+  }
+  if (luxuryItems > 0 && hero.role === "Carry") {
+    score += LUXURY_ITEM_BONUS;
+  }
+  if (build.items.every((item) => item.description.length > 10)) {
+    score += DESCRIPTION_LENGTH_BONUS;
+  }
+  if (build.playstyle.dos.length >= 3 && build.playstyle.donts.length >= 3 && build.playstyle.tips.length >= 3) {
+    score += PLAYSTYLE_COMPLETENESS_BONUS;
+  }
+  if (build.gameplan.early.length > 20 && build.gameplan.mid.length > 20 && build.gameplan.late.length > 20) {
+    score += GAMEPLAN_COMPLETENESS_BONUS;
+  }
+  return Math.max(0, Math.min(5, score));
+}
+
+// netlify/functions/api.ts
 var supabaseUrl = process.env.VITE_SUPABASE_URL;
 var supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) {
+var supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
   console.error("Missing Supabase environment variables");
   console.error("VITE_SUPABASE_URL:", !!supabaseUrl);
   console.error("VITE_SUPABASE_ANON_KEY:", !!supabaseAnonKey);
+  console.error("SUPABASE_SERVICE_ROLE_KEY:", !!supabaseServiceKey);
 }
 var supabase = (0, import_supabase_js.createClient)(supabaseUrl || "", supabaseAnonKey || "");
+var supabaseAdmin = (0, import_supabase_js.createClient)(supabaseUrl || "", supabaseServiceKey || "");
 var corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 var ApiService = class {
-  async getHeroes() {
-    const { data: heroes, error } = await supabase.from("heroes").select(`
-        id,
-        name,
-        role,
-        difficulty,
-        description,
-        hero_moods (mood),
-        hero_strengths (strength, order_index),
-        hero_weaknesses (weakness, order_index)
-      `).order("name");
+  async getHeroes(limit = 100, offset = 0, mood) {
+    let query = supabase.from("heroes").select(`
+      id,
+      name,
+      role,
+      difficulty,
+      description,
+      hero_moods (mood),
+      hero_strengths (strength, order_index),
+      hero_weaknesses (weakness, order_index)
+    `, { count: "exact" });
+    if (mood) {
+      const { data: heroIds } = await supabase.from("builds").select("hero_id").eq("mood", mood);
+      if (heroIds && heroIds.length > 0) {
+        query = query.in("id", heroIds.map((h) => h.hero_id));
+      }
+    }
+    const { data, error, count } = await query.order("name").range(offset, offset + limit - 1);
     if (error) {
       console.error("Error fetching heroes:", error);
       throw error;
     }
-    return heroes.map((hero) => ({
+    const heroes = data.map((hero) => ({
       id: hero.id,
       name: hero.name,
       role: hero.role,
@@ -14986,6 +15040,7 @@ var ApiService = class {
       strengths: hero.hero_strengths?.sort((a, b) => a.order_index - b.order_index).map((s) => s.strength) || [],
       weaknesses: hero.hero_weaknesses?.sort((a, b) => a.order_index - b.order_index).map((w) => w.weakness) || []
     }));
+    return { heroes, total: count || 0 };
   }
   async getHero(id) {
     const { data: hero, error } = await supabase.from("heroes").select(`
@@ -15015,15 +15070,17 @@ var ApiService = class {
   }
   async getBuilds() {
     const { data: builds, error } = await supabase.from("builds").select(`
+        id,
         hero_id,
         mood,
+        score,
         early_game,
         mid_game,
         late_game,
-        items (id, name, cost, phase, priority, description, order_index),
-        playstyle_dos (do_item, order_index),
-        playstyle_donts (dont_item, order_index),
-        playstyle_tips (tip, order_index)
+        items:items(id, name, cost, phase, priority, description, order_index),
+        playstyle_dos:playstyle_dos(do_item, order_index),
+        playstyle_donts:playstyle_donts(dont_item, order_index),
+        playstyle_tips:playstyle_tips(tip, order_index)
       `).order("hero_id").order("mood");
     if (error) {
       console.error("Error fetching builds:", error);
@@ -15032,6 +15089,7 @@ var ApiService = class {
     return builds.map((build) => ({
       heroId: build.hero_id,
       mood: build.mood,
+      score: build.score,
       items: build.items?.sort((a, b) => a.order_index - b.order_index).map((item) => ({
         id: item.id,
         name: item.name,
@@ -15054,15 +15112,17 @@ var ApiService = class {
   }
   async getHeroBuilds(heroId) {
     const { data: builds, error } = await supabase.from("builds").select(`
+        id,
         hero_id,
         mood,
+        score,
         early_game,
         mid_game,
         late_game,
-        items (id, name, cost, phase, priority, description, order_index),
-        playstyle_dos (do_item, order_index),
-        playstyle_donts (dont_item, order_index),
-        playstyle_tips (tip, order_index)
+        items:items(id, name, cost, phase, priority, description, order_index),
+        playstyle_dos:playstyle_dos(do_item, order_index),
+        playstyle_donts:playstyle_donts(dont_item, order_index),
+        playstyle_tips:playstyle_tips(tip, order_index)
       `).eq("hero_id", heroId).order("mood");
     if (error) {
       console.error("Error fetching hero builds:", error);
@@ -15071,6 +15131,7 @@ var ApiService = class {
     return builds.map((build) => ({
       heroId: build.hero_id,
       mood: build.mood,
+      score: build.score,
       items: build.items?.sort((a, b) => a.order_index - b.order_index).map((item) => ({
         id: item.id,
         name: item.name,
@@ -15093,15 +15154,17 @@ var ApiService = class {
   }
   async getBuild(heroId, mood) {
     const { data: build, error } = await supabase.from("builds").select(`
+        id,
         hero_id,
         mood,
+        score,
         early_game,
         mid_game,
         late_game,
-        items (id, name, cost, phase, priority, description, order_index),
-        playstyle_dos (do_item, order_index),
-        playstyle_donts (dont_item, order_index),
-        playstyle_tips (tip, order_index)
+        items:items(id, name, cost, phase, priority, description, order_index),
+        playstyle_dos:playstyle_dos(do_item, order_index),
+        playstyle_donts:playstyle_donts(dont_item, order_index),
+        playstyle_tips:playstyle_tips(tip, order_index)
       `).eq("hero_id", heroId).eq("mood", mood).single();
     if (error) {
       console.error("Error fetching build:", error);
@@ -15110,6 +15173,7 @@ var ApiService = class {
     return {
       heroId: build.hero_id,
       mood: build.mood,
+      score: build.score,
       items: build.items?.sort((a, b) => a.order_index - b.order_index).map((item) => ({
         id: item.id,
         name: item.name,
@@ -15140,6 +15204,225 @@ var ApiService = class {
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     };
   }
+  async createHero(heroData) {
+    const { data: hero, error: heroError } = await supabaseAdmin.from("heroes").insert({
+      id: heroData.id,
+      name: heroData.name,
+      role: heroData.role,
+      difficulty: heroData.difficulty,
+      description: heroData.description
+    }).select().single();
+    if (heroError) throw heroError;
+    if (heroData.moods.length > 0) {
+      const { error: moodError } = await supabaseAdmin.from("hero_moods").insert(heroData.moods.map((mood) => ({
+        hero_id: heroData.id,
+        mood
+      })));
+      if (moodError) throw moodError;
+    }
+    if (heroData.strengths.length > 0) {
+      const { error: strengthError } = await supabaseAdmin.from("hero_strengths").insert(heroData.strengths.map((strength, index) => ({
+        hero_id: heroData.id,
+        strength,
+        order_index: index
+      })));
+      if (strengthError) throw strengthError;
+    }
+    if (heroData.weaknesses.length > 0) {
+      const { error: weaknessError } = await supabaseAdmin.from("hero_weaknesses").insert(heroData.weaknesses.map((weakness, index) => ({
+        hero_id: heroData.id,
+        weakness,
+        order_index: index
+      })));
+      if (weaknessError) throw weaknessError;
+    }
+    return heroData;
+  }
+  async updateHero(id, heroData) {
+    const { data: hero, error: heroError } = await supabaseAdmin.from("heroes").update({
+      name: heroData.name,
+      role: heroData.role,
+      difficulty: heroData.difficulty,
+      description: heroData.description
+    }).eq("id", id).select().single();
+    if (heroError) throw heroError;
+    if (heroData.moods) {
+      await supabaseAdmin.from("hero_moods").delete().eq("hero_id", id);
+      if (heroData.moods.length > 0) {
+        const { error: moodError } = await supabaseAdmin.from("hero_moods").insert(heroData.moods.map((mood) => ({
+          hero_id: id,
+          mood
+        })));
+        if (moodError) throw moodError;
+      }
+    }
+    if (heroData.strengths) {
+      await supabaseAdmin.from("hero_strengths").delete().eq("hero_id", id);
+      if (heroData.strengths.length > 0) {
+        const { error: strengthError } = await supabaseAdmin.from("hero_strengths").insert(heroData.strengths.map((strength, index) => ({
+          hero_id: id,
+          strength,
+          order_index: index
+        })));
+        if (strengthError) throw strengthError;
+      }
+    }
+    if (heroData.weaknesses) {
+      await supabaseAdmin.from("hero_weaknesses").delete().eq("hero_id", id);
+      if (heroData.weaknesses.length > 0) {
+        const { error: weaknessError } = await supabaseAdmin.from("hero_weaknesses").insert(heroData.weaknesses.map((weakness, index) => ({
+          hero_id: id,
+          weakness,
+          order_index: index
+        })));
+        if (weaknessError) throw weaknessError;
+      }
+    }
+    return await this.getHero(id);
+  }
+  async deleteHero(id) {
+    const { error } = await supabaseAdmin.from("heroes").delete().eq("id", id);
+    if (error) throw error;
+  }
+  async createBuild(buildData) {
+    const hero = await this.getHero(buildData.heroId);
+    const score = calculateBuildScore(hero, buildData);
+    const { data: build, error: buildError } = await supabaseAdmin.from("builds").insert({
+      hero_id: buildData.heroId,
+      mood: buildData.mood,
+      score,
+      early_game: buildData.gameplan.early,
+      mid_game: buildData.gameplan.mid,
+      late_game: buildData.gameplan.late
+    }).select().single();
+    if (buildError) throw buildError;
+    if (buildData.items.length > 0) {
+      const { error: itemsError } = await supabaseAdmin.from("items").insert(
+        buildData.items.map((item, index) => ({
+          build_id: build.id,
+          id: item.id,
+          name: item.name,
+          cost: item.cost,
+          phase: item.phase,
+          priority: item.priority,
+          description: item.description,
+          order_index: index
+        }))
+      );
+      if (itemsError) throw itemsError;
+    }
+    if (buildData.playstyle.dos.length > 0) {
+      const { error: dosError } = await supabaseAdmin.from("playstyle_dos").insert(
+        buildData.playstyle.dos.map((doItem, index) => ({
+          build_id: build.id,
+          do_item: doItem,
+          order_index: index
+        }))
+      );
+      if (dosError) throw dosError;
+    }
+    if (buildData.playstyle.donts.length > 0) {
+      const { error: dontsError } = await supabaseAdmin.from("playstyle_donts").insert(
+        buildData.playstyle.donts.map((dontItem, index) => ({
+          build_id: build.id,
+          dont_item: dontItem,
+          order_index: index
+        }))
+      );
+      if (dontsError) throw dontsError;
+    }
+    if (buildData.playstyle.tips.length > 0) {
+      const { error: tipsError } = await supabaseAdmin.from("playstyle_tips").insert(
+        buildData.playstyle.tips.map((tip, index) => ({
+          build_id: build.id,
+          tip,
+          order_index: index
+        }))
+      );
+      if (tipsError) throw tipsError;
+    }
+    return buildData;
+  }
+  async updateBuild(id, buildData) {
+    let score;
+    if (buildData.heroId && buildData.items && buildData.playstyle && buildData.gameplan) {
+      const hero = await this.getHero(buildData.heroId);
+      score = calculateBuildScore(hero, buildData);
+    }
+    const { data: build, error: buildError } = await supabaseAdmin.from("builds").update({
+      hero_id: buildData.heroId,
+      mood: buildData.mood,
+      score,
+      early_game: buildData.gameplan?.early,
+      mid_game: buildData.gameplan?.mid,
+      late_game: buildData.gameplan?.late
+    }).eq("id", id).select().single();
+    if (buildError) throw buildError;
+    if (buildData.items) {
+      await supabaseAdmin.from("items").delete().eq("build_id", id);
+      if (buildData.items.length > 0) {
+        const { error: itemsError } = await supabaseAdmin.from("items").insert(
+          buildData.items.map((item, index) => ({
+            build_id: id,
+            id: item.id,
+            name: item.name,
+            cost: item.cost,
+            phase: item.phase,
+            priority: item.priority,
+            description: item.description,
+            order_index: index
+          }))
+        );
+        if (itemsError) throw itemsError;
+      }
+    }
+    if (buildData.playstyle) {
+      if (buildData.playstyle.dos) {
+        await supabaseAdmin.from("playstyle_dos").delete().eq("build_id", id);
+        if (buildData.playstyle.dos.length > 0) {
+          const { error: dosError } = await supabaseAdmin.from("playstyle_dos").insert(
+            buildData.playstyle.dos.map((doItem, index) => ({
+              build_id: id,
+              do_item: doItem,
+              order_index: index
+            }))
+          );
+          if (dosError) throw dosError;
+        }
+      }
+      if (buildData.playstyle.donts) {
+        await supabaseAdmin.from("playstyle_donts").delete().eq("build_id", id);
+        if (buildData.playstyle.donts.length > 0) {
+          const { error: dontsError } = await supabaseAdmin.from("playstyle_donts").insert(
+            buildData.playstyle.donts.map((dontItem, index) => ({
+              build_id: id,
+              dont_item: dontItem,
+              order_index: index
+            }))
+          );
+          if (dontsError) throw dontsError;
+        }
+      }
+      if (buildData.playstyle.tips) {
+        await supabaseAdmin.from("playstyle_tips").delete().eq("build_id", id);
+        if (buildData.playstyle.tips.length > 0) {
+          const { error: tipsError } = await supabaseAdmin.from("playstyle_tips").insert(
+            buildData.playstyle.tips.map((tip, index) => ({
+              build_id: id,
+              tip,
+              order_index: index
+            }))
+          );
+          if (tipsError) throw tipsError;
+        }
+      }
+    }
+    return await this.getBuild(build.hero_id, build.mood);
+  }
+  async deleteBuild(id) {
+    const { error } = await supabaseAdmin.from("builds").delete().eq("id", id);
+    if (error) throw error;
+  }
 };
 var apiService = new ApiService();
 var handler = async (event, context) => {
@@ -15169,11 +15452,15 @@ var handler = async (event, context) => {
       };
     }
     if (path === "/heroes" && method === "GET") {
-      const heroes = await apiService.getHeroes();
+      const url = new URL(event.rawUrl);
+      const limit = parseInt(url.searchParams.get("limit") || "20", 10);
+      const offset = parseInt(url.searchParams.get("offset") || "0", 10);
+      const mood = url.searchParams.get("mood") || void 0;
+      const heroesResult = await apiService.getHeroes(limit, offset, mood);
       return {
         statusCode: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify(heroes)
+        body: JSON.stringify(heroesResult)
       };
     }
     if (path === "/builds" && method === "GET") {
@@ -15182,6 +15469,15 @@ var handler = async (event, context) => {
         statusCode: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         body: JSON.stringify(builds)
+      };
+    }
+    if (path === "/builds" && method === "POST") {
+      const buildData = JSON.parse(event.body || "{}");
+      const newBuild = await apiService.createBuild(buildData);
+      return {
+        statusCode: 201,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify(newBuild)
       };
     }
     const heroMatch = path.match(/^\/heroes\/([^\/]+)$/);
@@ -15194,6 +15490,24 @@ var handler = async (event, context) => {
         body: JSON.stringify(hero)
       };
     }
+    if (heroMatch && method === "PUT") {
+      const heroId = heroMatch[1];
+      const heroData = JSON.parse(event.body || "{}");
+      const updatedHero = await apiService.updateHero(heroId, heroData);
+      return {
+        statusCode: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify(updatedHero)
+      };
+    }
+    if (heroMatch && method === "DELETE") {
+      const heroId = heroMatch[1];
+      await apiService.deleteHero(heroId);
+      return {
+        statusCode: 204,
+        headers: corsHeaders
+      };
+    }
     const heroBuildsMatch = path.match(/^\/heroes\/([^\/]+)\/builds$/);
     if (heroBuildsMatch && method === "GET") {
       const heroId = heroBuildsMatch[1];
@@ -15202,6 +15516,25 @@ var handler = async (event, context) => {
         statusCode: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         body: JSON.stringify(builds)
+      };
+    }
+    const buildIdMatch = path.match(/^\/builds\/(\d+)$/);
+    if (buildIdMatch && method === "PUT") {
+      const buildId = parseInt(buildIdMatch[1], 10);
+      const buildData = JSON.parse(event.body || "{}");
+      const updatedBuild = await apiService.updateBuild(buildId, buildData);
+      return {
+        statusCode: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify(updatedBuild)
+      };
+    }
+    if (buildIdMatch && method === "DELETE") {
+      const buildId = parseInt(buildIdMatch[1], 10);
+      await apiService.deleteBuild(buildId);
+      return {
+        statusCode: 204,
+        headers: corsHeaders
       };
     }
     const buildMatch = path.match(/^\/heroes\/([^\/]+)\/builds\/([^\/]+)$/);

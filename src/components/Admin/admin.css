@@ -1,0 +1,162 @@
+/* Admin Layout */
+.admin-layout {
+  @apply min-h-screen bg-background/95 flex flex-col;
+  background-image: 
+    radial-gradient(at 50% 0%, rgba(var(--primary-rgb), 0.1) 0%, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(var(--primary-rgb), 0.05) 0%, transparent 50%);
+}
+
+/* Admin Login */
+.admin-login-screen {
+  @apply flex-1 flex items-center justify-center p-4;
+}
+
+.admin-login-card {
+  @apply bg-background/80 p-8 rounded-2xl shadow-xl max-w-md w-full 
+  border border-border/50 backdrop-blur-sm;
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(var(--border-rgb), 0.05),
+    0 1px 2px 0 rgba(var(--border-rgb), 0.1);
+}
+
+.admin-login-title {
+  @apply text-4xl font-bold mb-3 text-center;
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary))/70%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.admin-login-subtitle {
+  @apply text-muted-foreground mb-8 text-center;
+}
+
+.admin-login-input {
+  @apply w-full px-4 py-3 rounded-xl bg-background/50
+  border border-border/50 backdrop-blur-sm
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  text-foreground placeholder:text-muted-foreground transition-all duration-200;
+}
+
+.admin-login-error {
+  @apply text-destructive mt-2 text-sm font-medium;
+}
+
+.admin-login-button {
+  @apply w-full py-3 rounded-xl bg-primary text-primary-foreground
+  hover:bg-primary/90 transition-all duration-200 font-medium
+  focus:outline-none focus:ring-2 focus:ring-primary/20;
+}
+
+/* Admin Dashboard */
+.admin-dashboard {
+  @apply flex-1 flex flex-col gap-6 p-4 lg:p-6 max-w-[1400px] mx-auto w-full;
+}
+
+.admin-header {
+  @apply flex flex-col sm:flex-row justify-between items-start sm:items-center 
+  gap-4 p-4 lg:p-6 bg-background/80 rounded-2xl border border-border/50 backdrop-blur-sm
+  shadow-sm;
+}
+
+.admin-title-section {
+  @apply flex items-center gap-3;
+}
+
+.admin-icon {
+  @apply p-2 rounded-xl bg-primary/10 text-primary;
+}
+
+.admin-dashboard-title {
+  @apply text-2xl lg:text-3xl font-bold text-foreground;
+}
+
+.admin-tabs {
+  @apply flex flex-wrap gap-2;
+}
+
+.admin-tab-button {
+  @apply flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
+  transition-all duration-200 hover:bg-accent/50 bg-background/50
+  border border-border/50 backdrop-blur-sm
+  data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+  data-[state=active]:border-primary/50;
+}
+
+.admin-content {
+  @apply bg-background/80 rounded-2xl border border-border/50 p-4 lg:p-6 backdrop-blur-sm
+  shadow-sm;
+}
+
+/* Admin Manager Components */
+.admin-manager {
+  @apply space-y-6;
+}
+
+.admin-controls {
+  @apply flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center
+  p-4 rounded-xl bg-muted/50 border border-border/50;
+}
+
+.admin-search {
+  @apply flex-1 max-w-md;
+}
+
+.admin-search-input {
+  @apply w-full px-4 py-2.5 rounded-xl border border-border/50 bg-background/50
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  placeholder:text-muted-foreground transition-all duration-200;
+}
+
+.admin-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+.admin-grid {
+  @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6;
+}
+
+.admin-card {
+  @apply p-4 rounded-xl border border-border/50 bg-background/50 
+  hover:bg-accent/5 hover:border-border
+  transition-all duration-200 cursor-pointer shadow-sm;
+}
+
+.admin-card-header {
+  @apply flex justify-between items-start mb-4;
+}
+
+.admin-card-title {
+  @apply font-medium text-lg;
+}
+
+.admin-card-actions {
+  @apply flex gap-2;
+}
+
+.admin-form {
+  @apply space-y-6 max-w-2xl mx-auto;
+}
+
+.admin-form-section {
+  @apply space-y-4 p-4 rounded-xl bg-muted/50 border border-border/50;
+}
+
+.admin-form-title {
+  @apply text-lg font-medium pb-2 border-b border-border;
+}
+
+.admin-form-group {
+  @apply space-y-2;
+}
+
+.admin-label {
+  @apply text-sm font-medium text-muted-foreground;
+}
+
+.admin-input {
+  @apply w-full px-4 py-2.5 rounded-xl border border-border/50 bg-background/50
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  placeholder:text-muted-foreground transition-all duration-200;
+}

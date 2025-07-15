@@ -233,13 +233,13 @@ class DatabaseManager:
             print(f"🦸 Adding hero: {hero.name}...")
             
             # Insert hero
-            hero_result = self.supabase.table('heroes').upsert({
+            hero_result = self.supabase.table('heroes').insert({
                 'id': hero.id,
                 'name': hero.name,
                 'role': hero.role,
                 'difficulty': hero.difficulty,
                 'description': hero.description
-            }, on_conflict='id').execute()
+            }).execute()
             
             if hero_result.data is None:
                 print(f"❌ Failed to add hero: {hero.name}")
@@ -247,17 +247,17 @@ class DatabaseManager:
             
             # Insert hero moods
             for mood in hero.moods:
-                mood_result = self.supabase.table('hero_moods').upsert({
+                mood_result = self.supabase.table('hero_moods').insert({
                     'hero_id': hero.id,
                     'mood': mood
-                }, on_conflict='hero_id,mood').execute()
+                }).execute()
                 
                 if mood_result.data is None:
                     print(f"⚠️  Warning: Failed to add mood {mood} for hero {hero.name}")
             
             # Insert hero strengths
             for i, strength in enumerate(hero.strengths):
-                strength_result = self.supabase.table('hero_strengths').upsert({
+                strength_result = self.supabase.table('hero_strengths').insert({
                     'hero_id': hero.id,
                     'strength': strength,
                     'order_index': i
@@ -268,7 +268,7 @@ class DatabaseManager:
             
             # Insert hero weaknesses
             for i, weakness in enumerate(hero.weaknesses):
-                weakness_result = self.supabase.table('hero_weaknesses').upsert({
+                weakness_result = self.supabase.table('hero_weaknesses').insert({
                     'hero_id': hero.id,
                     'weakness': weakness,
                     'order_index': i
@@ -290,13 +290,13 @@ class DatabaseManager:
             print(f"🔨 Adding build: {build.heroId} ({build.mood})...")
             
             # Insert build
-            build_result = self.supabase.table('builds').upsert({
+            build_result = self.supabase.table('builds').insert({
                 'hero_id': build.heroId,
                 'mood': build.mood,
                 'early_game': build.gameplan.early,
                 'mid_game': build.gameplan.mid,
                 'late_game': build.gameplan.late
-            }, on_conflict='hero_id,mood').execute()
+            }).execute()
             
             if not build_result.data:
                 print(f"❌ Failed to add build: {build.heroId} ({build.mood})")
@@ -306,7 +306,7 @@ class DatabaseManager:
             
             # Insert items
             for i, item in enumerate(build.items):
-                item_result = self.supabase.table('items').upsert({
+                item_result = self.supabase.table('items').insert({
                     'build_id': build_id,
                     'name': item.name,
                     'cost': item.cost,
@@ -321,7 +321,7 @@ class DatabaseManager:
             
             # Insert playstyle dos
             for i, do_item in enumerate(build.playstyle.dos):
-                do_result = self.supabase.table('playstyle_dos').upsert({
+                do_result = self.supabase.table('playstyle_dos').insert({
                     'build_id': build_id,
                     'do_item': do_item,
                     'order_index': i
@@ -332,7 +332,7 @@ class DatabaseManager:
             
             # Insert playstyle donts
             for i, dont_item in enumerate(build.playstyle.donts):
-                dont_result = self.supabase.table('playstyle_donts').upsert({
+                dont_result = self.supabase.table('playstyle_donts').insert({
                     'build_id': build_id,
                     'dont_item': dont_item,
                     'order_index': i
@@ -343,7 +343,7 @@ class DatabaseManager:
             
             # Insert playstyle tips
             for i, tip in enumerate(build.playstyle.tips):
-                tip_result = self.supabase.table('playstyle_tips').upsert({
+                tip_result = self.supabase.table('playstyle_tips').insert({
                     'build_id': build_id,
                     'tip': tip,
                     'order_index': i
@@ -375,6 +375,15 @@ class DatabaseManager:
             return len(result.data) > 0
         except Exception as e:
             print(f"❌ Error checking hero existence: {str(e)}")
+            return False
+    
+    def build_exists(self, hero_id: str, mood: str) -> bool:
+        """Check if a build exists in the database"""
+        try:
+            result = self.supabase.table('builds').select('id').eq('hero_id', hero_id).eq('mood', mood).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"❌ Error checking build existence: {str(e)}")
             return False
 
 class InteractiveInput:
@@ -700,6 +709,11 @@ Examples:
                     fail_count += 1
                     continue
                 
+                # Check if hero already exists
+                if db_manager.hero_exists(hero_data['id']):
+                    print(f"⏭️  Hero {hero_data.get('name', 'unknown')} already exists, skipping...")
+                    continue
+                
                 hero = Hero(**hero_data)
                 if db_manager.add_hero(hero):
                     success_count += 1
@@ -726,6 +740,11 @@ Examples:
                 if not db_manager.hero_exists(build_data['heroId']):
                     print(f"❌ Hero '{build_data['heroId']}' does not exist in database")
                     fail_count += 1
+                    continue
+                
+                # Check if build already exists for this hero and mood
+                if db_manager.build_exists(build_data['heroId'], build_data['mood']):
+                    print(f"⏭️  Build for hero '{build_data['heroId']}' with mood '{build_data['mood']}' already exists, skipping...")
                     continue
                 
                 # Convert nested dictionaries to dataclasses

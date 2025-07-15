@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Build } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Clock, DollarSign, CheckCircle, XCircle, Lightbulb, Target, ChevronRight } from 'lucide-react';
+import { Clock, DollarSign, CheckCircle, XCircle, Lightbulb, Target, ChevronRight, Star } from 'lucide-react';
 
 interface BuildGuideProps {
   build: Build;
@@ -17,8 +17,49 @@ export const BuildGuide: React.FC<BuildGuideProps> = ({ build }) => {
     { id: 'gameplan', label: t('build.gameplan'), icon: Clock }
   ];
 
+  const renderScore = () => {
+    if (build.score === undefined || build.score === null) {
+      return null;
+    }
+
+    const score = Math.round(build.score * 10) / 10;
+    const fullStars = Math.floor(score);
+    const halfStar = score % 1 >= 0.5;
+
+    return (
+      <div className="build-score">
+        <span className="score-label">LEGITIMACY SCORE</span>
+        <div className="stars">
+          {[...Array(5)].map((_, i) => (
+            <Star
+              key={i}
+              size={16}
+              className={`star ${i < score ? 'active' : ''}`}
+              fill={i < fullStars ? 'currentColor' : (i === fullStars && halfStar ? 'url(#half_grad)' : 'none')}
+            />
+          ))}
+        </div>
+        <span className="score-value">{score.toFixed(1)}</span>
+        <svg width="0" height="0">
+          <defs>
+            <linearGradient id="half_grad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="50%" stopColor="currentColor" />
+              <stop offset="50%" stopColor="none" stopOpacity="1" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <div className="build-guide card">
+      {/* Header with Score */}
+      <div className="build-guide-header">
+        <h2 className="build-guide-title">{t('build.title')}</h2>
+        {renderScore()}
+      </div>
+      
       {/* Tab Navigation */}
       <div className="tab-nav">
         {tabs.map(tab => {

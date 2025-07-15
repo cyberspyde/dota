@@ -27,8 +27,9 @@ dist-ssr
 # Vercel
 .vercel
 
-# Prisma
-prisma/migrations/
+# Database
+*.db
+*.sqlite
 
 # Neon Database
 DATABASE_URL=postgresql://neondb_owner:npg_jPQnFH6WLru1@ep-delicate-truth-a2a5yewj-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require

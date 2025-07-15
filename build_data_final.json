@@ -1,6 +1,7 @@
-{
+[
+  {
     "heroId": "abaddon",
-    "mood": "protective",
+    "mood": "defensive",
     "items": [
       {
         "id": "phase_boots",
@@ -82,7 +83,7 @@
   },
   {
     "heroId": "alchemist",
-    "mood": "greedy",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -164,7 +165,7 @@
   },
   {
     "heroId": "ancient_apparition",
-    "mood": "strategic",
+    "mood": "experimental",
     "items": [
       {
         "id": "tranquil_boots",
@@ -246,7 +247,7 @@
   },
   {
     "heroId": "antimage",
-    "mood": "elusive",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -328,7 +329,7 @@
   },
   {
     "heroId": "arc_warden",
-    "mood": "calculating",
+    "mood": "creative",
     "items": [
       {
         "id": "maelstrom",
@@ -492,7 +493,7 @@
   },
   {
     "heroId": "bane",
-    "mood": "debilitating",
+    "mood": "chaos",
     "items": [
       {
         "id": "arcane_boots",
@@ -574,7 +575,7 @@
   },
   {
     "heroId": "batrider",
-    "mood": "chaotic",
+    "mood": "chaos",
     "items": [
       {
         "id": "boots_of_travel",
@@ -656,7 +657,7 @@
   },
   {
     "heroId": "beastmaster",
-    "mood": "commanding",
+    "mood": "aggressive",
     "items": [
       {
         "id": "helm_of_the_overlord",
@@ -738,7 +739,7 @@
   },
   {
     "heroId": "bloodseeker",
-    "mood": "frenzied",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -820,7 +821,7 @@
   },
   {
     "heroId": "bounty_hunter",
-    "mood": "opportunistic",
+    "mood": "chaos",
     "items": [
       {
         "id": "phase_boots",
@@ -902,7 +903,7 @@
   },
   {
     "heroId": "brewmaster",
-    "mood": "unruly",
+    "mood": "chaos",
     "items": [
       {
         "id": "phase_boots",
@@ -984,7 +985,7 @@
   },
   {
     "heroId": "bristleback",
-    "mood": "relentless",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -1066,7 +1067,7 @@
   },
   {
     "heroId": "broodmother",
-    "mood": "overwhelming",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -1148,7 +1149,7 @@
   },
   {
     "heroId": "centaur_warrunner",
-    "mood": "unstoppable",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -1230,7 +1231,7 @@
   },
   {
     "heroId": "chaos_knight",
-    "mood": "unpredictable",
+    "mood": "chaos",
     "items": [
       {
         "id": "power_treads",
@@ -1312,7 +1313,7 @@
   },
   {
     "heroId": "chen",
-    "mood": "devout",
+    "mood": "defensive",
     "items": [
       {
         "id": "arcane_boots",
@@ -1394,7 +1395,7 @@
   },
   {
     "heroId": "clinkz",
-    "mood": "elusive",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -1476,7 +1477,7 @@
   },
   {
     "heroId": "clockwerk",
-    "mood": "disruptive",
+    "mood": "chaos",
     "items": [
       {
         "id": "phase_boots",
@@ -1558,7 +1559,7 @@
   },
   {
     "heroId": "crystal_maiden",
-    "mood": "supportive",
+    "mood": "defensive",
     "items": [
       {
         "id": "tranquil_boots",
@@ -1640,7 +1641,7 @@
   },
   {
     "heroId": "dark_seer",
-    "mood": "strategic",
+    "mood": "experimental",
     "items": [
       {
         "id": "arcane_boots",
@@ -1722,7 +1723,7 @@
   },
   {
     "heroId": "dark_willow",
-    "mood": "mischievous",
+    "mood": "chaos",
     "items": [
       {
         "id": "arcane_boots",
@@ -1804,7 +1805,7 @@
   },
   {
     "heroId": "dawnbreaker",
-    "mood": "righteous",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -1886,7 +1887,7 @@
   },
   {
     "heroId": "dazzle",
-    "mood": "benevolent",
+    "mood": "defensive",
     "items": [
       {
         "id": "arcane_boots",
@@ -1968,7 +1969,7 @@
   },
   {
     "heroId": "death_prophet",
-    "mood": "relentless",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -2050,7 +2051,7 @@
   },
   {
     "heroId": "disruptor",
-    "mood": "controlling",
+    "mood": "chaos",
     "items": [
       {
         "id": "arcane_boots",
@@ -2132,7 +2133,7 @@
   },
   {
     "heroId": "doom",
-    "mood": "dominant",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -2214,7 +2215,7 @@
   },
   {
     "heroId": "dragon_knight",
-    "mood": "steadfast",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -2296,7 +2297,7 @@
   },
   {
     "heroId": "drow_ranger",
-    "mood": "precise",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -2378,7 +2379,7 @@
   },
   {
     "heroId": "earth_spirit",
-    "mood": "dynamic",
+    "mood": "creative",
     "items": [
       {
         "id": "urn_of_shadows",
@@ -2460,7 +2461,7 @@
   },
   {
     "heroId": "earthshaker",
-    "mood": "seismic",
+    "mood": "creative",
     "items": [
       {
         "id": "arcane_boots",
@@ -2542,7 +2543,7 @@
   },
   {
     "heroId": "elder_titan",
-    "mood": "primordial",
+    "mood": "creative",
     "items": [
       {
         "id": "phase_boots",
@@ -2624,7 +2625,7 @@
   },
   {
     "heroId": "ember_spirit",
-    "mood": "agile",
+    "mood": "creative",
     "items": [
       {
         "id": "power_treads",
@@ -2706,7 +2707,7 @@
   },
   {
     "heroId": "enchantress",
-    "mood": "whimsical",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -2788,7 +2789,7 @@
   },
   {
     "heroId": "enigma",
-    "mood": "mysterious",
+    "mood": "creative",
     "items": [
       {
         "id": "arcane_boots",
@@ -2870,7 +2871,7 @@
   },
   {
     "heroId": "faceless_void",
-    "mood": "inevitable",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -2952,7 +2953,7 @@
   },
   {
     "heroId": "grimstroke",
-    "mood": "artistic",
+    "mood": "creative",
     "items": [
       {
         "id": "arcane_boots",
@@ -3116,7 +3117,7 @@
   },
   {
     "heroId": "hoodwink",
-    "mood": "sly",
+    "mood": "creative",
     "items": [
       {
         "id": "power_treads",
@@ -3198,7 +3199,7 @@
   },
   {
     "heroId": "huskar",
-    "mood": "reckless",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -3362,7 +3363,7 @@
   },
   {
     "heroId": "io",
-    "mood": "symbiotic",
+    "mood": "experimental",
     "items": [
       {
         "id": "mekansm",
@@ -3444,7 +3445,7 @@
   },
   {
     "heroId": "jakiro",
-    "mood": "versatile",
+    "mood": "chaos",
     "items": [
       {
         "id": "arcane_boots",
@@ -3526,7 +3527,7 @@
   },
   {
     "heroId": "juggernaut",
-    "mood": "unstoppable",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -3608,7 +3609,7 @@
   },
   {
     "heroId": "keeper_of_the_light",
-    "mood": "illuminating",
+    "mood": "defensive",
     "items": [
       {
         "id": "tranquil_boots",
@@ -3690,7 +3691,7 @@
   },
   {
     "heroId": "kunkka",
-    "mood": "swashbuckling",
+    "mood": "creative",
     "items": [
       {
         "id": "phase_boots",
@@ -3772,7 +3773,7 @@
   },
   {
     "heroId": "legion_commander",
-    "mood": "valorous",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -3854,7 +3855,7 @@
   },
   {
     "heroId": "leshrac",
-    "mood": "destructive",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -3936,7 +3937,7 @@
   },
   {
     "heroId": "lich",
-    "mood": "chilling",
+    "mood": "defensive",
     "items": [
       {
         "id": "tranquil_boots",
@@ -4018,7 +4019,7 @@
   },
   {
     "heroId": "lifestealer",
-    "mood": "voracious",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -4100,7 +4101,7 @@
   },
   {
     "heroId": "lina",
-    "mood": "fiery",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -4182,7 +4183,7 @@
   },
   {
     "heroId": "lion",
-    "mood": "malevolent",
+    "mood": "chaos",
     "items": [
       {
         "id": "tranquil_boots",
@@ -4264,7 +4265,7 @@
   },
   {
     "heroId": "lone_druid",
-    "mood": "synergistic",
+    "mood": "creative",
     "items": [
       {
         "id": "phase_boots",
@@ -4346,7 +4347,7 @@
   },
   {
     "heroId": "luna",
-    "mood": "radiant",
+    "mood": "aggressive",
     "items": [
       {
         "id": "power_treads",
@@ -4428,7 +4429,7 @@
   },
   {
     "heroId": "lycan",
-    "mood": "feral",
+    "mood": "aggressive",
     "items": [
       {
         "id": "helm_of_the_overlord",
@@ -4510,7 +4511,7 @@
   },
   {
     "heroId": "magnus",
-    "mood": "empowering",
+    "mood": "creative",
     "items": [
       {
         "id": "power_treads",
@@ -4592,7 +4593,7 @@
   },
   {
     "heroId": "marci",
-    "mood": "loyal",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -4674,7 +4675,7 @@
   },
   {
     "heroId": "mars",
-    "mood": "imperious",
+    "mood": "aggressive",
     "items": [
       {
         "id": "phase_boots",
@@ -4756,7 +4757,7 @@
   },
   {
     "heroId": "medusa",
-    "mood": "implacable",
+    "mood": "defensive",
     "items": [
       {
         "id": "power_treads",
@@ -4838,7 +4839,7 @@
   },
   {
     "heroId": "meepo",
-    "mood": "chaotic",
+    "mood": "chaos",
     "items": [
       {
         "id": "power_treads",
@@ -4920,7 +4921,7 @@
   },
   {
     "heroId": "mirana",
-    "mood": "elusive",
+    "mood": "experimental",
     "items": [
       {
         "id": "power_treads",
@@ -5002,7 +5003,7 @@
   },
   {
     "heroId": "monkey_king",
-    "mood": "playful",
+    "mood": "creative",
     "items": [
       {
         "id": "power_treads",
@@ -5082,3 +5083,4 @@
       "late": "You are a powerful right-click carry. Your job is to jump on backline heroes and burst them down. You excel at skirmishes and pickoffs."
     }
   }
+]

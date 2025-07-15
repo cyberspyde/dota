@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Mood, Hero, Build } from './types';
 import { apiService } from './services/api';
 import { MoodSelector } from './components/MoodSelector';
@@ -10,35 +11,63 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ConnectionStatus } from './components/ConnectionStatus';
-import { Gamepad2, Crown, RefreshCw, Search, Zap, Activity } from 'lucide-react';
+import { Admin } from './components/Admin';
+import { Gamepad2, Crown, RefreshCw, Search, Zap, Activity, ChevronLeft, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
 
-function AppContent() {
+const PAGE_SIZE = 12;
+
+function MainApp() {
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
   const [currentHero, setCurrentHero] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [heroes, setHeroes] = useState<Hero[]>([]);
+  const [totalHeroes, setTotalHeroes] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [builds, setBuilds] = useState<Build[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
 
-  // Load data on component mount
-  React.useEffect(() => {
-    loadData();
+  const heroAverageScores = useMemo(() => {
+    if (!builds.length) return {};
+    const scores: { [heroId: string]: { totalScore: number; count: number } } = {};
+    
+    for (const build of builds) {
+      if (!scores[build.heroId]) {
+        scores[build.heroId] = { totalScore: 0, count: 0 };
+      }
+      if (build.score !== null && build.score !== undefined) {
+        scores[build.heroId].totalScore += build.score;
+        scores[build.heroId].count++;
+      }
+    }
+    
+    const averages: { [heroId: string]: number } = {};
+    for (const heroId in scores) {
+      if (scores[heroId].count > 0) {
+        averages[heroId] = scores[heroId].totalScore / scores[heroId].count;
+      }
+    }
+    return averages;
+  }, [builds]);
+
+  useEffect(() => {
+    loadInitialData();
   }, []);
 
-  const loadData = async () => {
+  const loadInitialData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const [heroesData, buildsData] = await Promise.all([
-        apiService.getHeroes(),
-        apiService.getBuilds()
+      const [buildsData, heroesResult] = await Promise.all([
+        apiService.getBuilds(),
+        apiService.getHeroes(PAGE_SIZE, 0)
       ]);
-      
-      setHeroes(heroesData);
       setBuilds(buildsData);
+      setHeroes(heroesResult.heroes);
+      setTotalHeroes(heroesResult.total);
+      setOffset(PAGE_SIZE);
     } catch (err) {
       console.error('Failed to load data:', err);
       setError('Failed to load data. Please check your internet connection and try again.');
@@ -46,54 +75,69 @@ function AppContent() {
       setLoading(false);
     }
   };
+  
+  const handleMoodSelect = async (mood: Mood) => {
+    if (selectedMood === mood) {
+      // Deselect mood and load all heroes
+      setSelectedMood(null);
+      setHeroes([]);
+      setOffset(0);
+      await loadInitialData();
+      return;
+    }
 
-  const getRandomHero = (mood: Mood) => {
-    const moodHeroes = heroes.filter(hero => hero.moods.includes(mood));
-    if (moodHeroes.length === 0) return null;
-    return moodHeroes[Math.floor(Math.random() * moodHeroes.length)];
-  };
-
-  const handleMoodSelect = (mood: Mood) => {
     setSelectedMood(mood);
-    const hero = getRandomHero(mood);
-    setCurrentHero(hero?.id || null);
+    setCurrentHero(null);
+    setLoading(true);
+    
+    try {
+      const result = await apiService.getHeroes(PAGE_SIZE, 0, mood);
+      setHeroes(result.heroes);
+      setTotalHeroes(result.total);
+      setOffset(PAGE_SIZE);
+    } catch (err) {
+      console.error('Failed to filter heroes by mood:', err);
+      setError('Failed to filter heroes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleLoadMore = async () => {
+    if (loadingMore || heroes.length >= totalHeroes) return;
+    
+    setLoadingMore(true);
+    try {
+      const result = await apiService.getHeroes(PAGE_SIZE, offset, selectedMood || undefined);
+      setHeroes(prev => [...prev, ...result.heroes]);
+      setOffset(prev => prev + PAGE_SIZE);
+      setTotalHeroes(result.total);
+    } catch (err) {
+      console.error('Failed to load more heroes:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const handleHeroSelect = (hero: Hero) => {
     setCurrentHero(hero.id);
-    
-    // Get available builds for this hero
-    const heroBuildMoods = builds.filter(b => b.heroId === hero.id).map(b => b.mood);
-    
-    // If hero has builds, automatically select the first mood to show the build
-    if (heroBuildMoods.length > 0) {
-      // If current mood has a build for this hero, keep it
-      if (selectedMood && heroBuildMoods.includes(selectedMood)) {
-        // Keep current mood
-        return;
-      }
-      // Otherwise, auto-select the first available mood
-      setSelectedMood(heroBuildMoods[0]);
-    } else {
-      // No builds available, clear mood selection
-      setSelectedMood(null);
-    }
   };
 
   const handleReroll = () => {
-    if (selectedMood) {
-      const hero = getRandomHero(selectedMood);
-      setCurrentHero(hero?.id || null);
+    if (heroes.length > 0) {
+      const hero = heroes[Math.floor(Math.random() * heroes.length)];
+      setCurrentHero(hero.id);
     }
+  };
+  
+  const handleBack = () => {
+    setCurrentHero(null);
   };
 
   const selectedHero = currentHero ? heroes.find(h => h.id === currentHero) : null;
-  
-  // Get available builds for current hero
-  const availableBuilds = currentHero ? builds.filter(b => b.heroId === currentHero) : [];
-  const selectedBuild = selectedMood ? availableBuilds.find(b => b.mood === selectedMood) : null;
+  const selectedBuild = selectedHero && selectedMood ? builds.find(b => b.heroId === selectedHero.id && b.mood === selectedMood) : null;
 
-  if (loading) {
+  if (loading && heroes.length === 0) {
     return (
       <div className="loading-screen">
         <div>
@@ -117,10 +161,31 @@ function AppContent() {
           <div className="error-icon">⚠️</div>
           <h2 className="error-title">CONNECTION ERROR</h2>
           <p className="error-message">{error}</p>
-          <button onClick={loadData} className="btn btn-primary">
+          <button onClick={loadInitialData} className="btn btn-primary">
             <Zap size={16} />
             RETRY CONNECTION
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedHero) {
+    return (
+      <div style={{ minHeight: '100vh', paddingTop: '5rem' }}>
+        <ConnectionStatus />
+        <div className="container">
+          <button onClick={handleBack} className="btn btn-secondary mb-8">
+            <ChevronLeft size={16} />
+            BACK TO HERO GRID
+          </button>
+          <HeroCard hero={selectedHero} />
+          {selectedBuild && <BuildGuide build={selectedBuild} />}
+          {!selectedBuild && (
+            <div className="card mt-8 p-8 text-center">
+              <p>No build available for this hero and mood combination.</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -141,6 +206,10 @@ function AppContent() {
               <Search size={16} />
               <span>SEARCH</span>
             </button>
+            <Link to="/admin" className="btn btn-secondary" title="Admin Dashboard">
+              <SlidersHorizontal size={16} />
+              <span>ADMIN</span>
+            </Link>
             <LanguageSelector />
             <ThemeToggle />
           </div>
@@ -178,106 +247,36 @@ function AppContent() {
           <MoodSelector selectedMood={selectedMood} onMoodSelect={handleMoodSelect} />
         </div>
 
-        {selectedHero && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap',
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
-              <h2 style={{ 
-                fontSize: '2rem', 
-                fontWeight: 'bold',
-                color: '#00ff88',
-                textShadow: '0 0 20px rgba(0, 255, 136, 0.5)'
-              }}>
-                {selectedMood ? t('hero.recommendation') : t('hero.selected') || 'SELECTED HERO'}
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                {selectedMood && (
-                  <button onClick={handleReroll} className="btn btn-primary">
-                    <RefreshCw size={16} />
-                    REROLL
-                  </button>
-                )}
-                <button onClick={() => setIsSearchOpen(true)} className="btn btn-secondary">
-                  <Search size={16} />
-                  CHANGE
-                </button>
-              </div>
-            </div>
+        <div className="hero-grid">
+          {heroes.map(hero => {
+            const buildScore = selectedMood 
+              ? builds.find(b => b.heroId === hero.id && b.mood === selectedMood)?.score
+              : heroAverageScores[hero.id];
             
-            <HeroCard hero={selectedHero} />
+            return (
+              <div key={hero.id} onClick={() => handleHeroSelect(hero)} style={{ cursor: 'pointer' }}>
+                <HeroCard hero={hero} score={buildScore} />
+              </div>
+            );
+          })}
+        </div>
+        
+        {loadingMore && <div className="loading-text text-center my-4">LOADING...</div>}
 
-            {selectedBuild && (
-              <div>
-                <h2 style={{ 
-                  fontSize: '2rem', 
-                  fontWeight: 'bold', 
-                  marginBottom: '1.5rem',
-                  color: '#8b5cf6',
-                  textShadow: '0 0 20px rgba(139, 92, 246, 0.5)'
-                }}>
-                  {t('build.title')}
-                </h2>
-                <BuildGuide build={selectedBuild} />
-              </div>
-            )}
-            
-            {currentHero && availableBuilds.length > 0 && !selectedMood && (
-              <div className="card" style={{ padding: '1.5rem', borderColor: 'rgba(255, 255, 0, 0.5)' }}>
-                <h3 style={{ 
-                  fontSize: '1.25rem', 
-                  fontWeight: 'bold',
-                  color: '#ffff00',
-                  marginBottom: '1rem'
-                }}>
-                  {t('build.selectMood') || 'SELECT COMBAT PROTOCOL'}
-                </h3>
-                <div style={{ 
-                  fontSize: '0.875rem',
-                  color: 'rgba(255, 255, 0, 0.8)',
-                  marginBottom: '1rem',
-                  fontFamily: 'Fira Code, monospace'
-                }}>
-                  {t('build.availableFor') || 'Available protocols for this hero:'}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  {availableBuilds.map(build => (
-                    <button
-                      key={build.mood}
-                      onClick={() => setSelectedMood(build.mood)}
-                      className="btn btn-primary"
-                      style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                    >
-                      {t(`mood.${build.mood}`) || build.mood}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {currentHero && availableBuilds.length === 0 && (
-              <div className="card" style={{ padding: '1.5rem', borderColor: 'rgba(255, 102, 0, 0.5)' }}>
-                <p style={{ 
-                  color: '#ff6600',
-                  fontFamily: 'Fira Code, monospace',
-                  textAlign: 'center'
-                }}>
-                  {t('build.noBuildForHero') || 'NO BUILD PROTOCOLS AVAILABLE FOR THIS HERO'}
-                </p>
-              </div>
-            )}
+        {!loading && heroes.length < totalHeroes && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
+            <button onClick={handleLoadMore} className="btn btn-primary" disabled={loadingMore}>
+              <MoreHorizontal size={16} />
+              {loadingMore ? 'LOADING...' : 'LOAD MORE HEROES'}
+            </button>
           </div>
         )}
 
-        {!selectedMood && !currentHero && (
+        {heroes.length === 0 && !loading && (
           <div className="welcome-screen">
-            <div className="welcome-icon">🎮</div>
+            <div className="welcome-icon">🤔</div>
             <div className="welcome-message">
-              {t('welcome.message') || 'SELECT YOUR COMBAT MOOD TO BEGIN HERO ANALYSIS'}
+              {`NO HEROES FOUND FOR '${(selectedMood || '').toUpperCase()}' PROTOCOL. TRY ANOTHER.`}
             </div>
           </div>
         )}
@@ -290,7 +289,10 @@ function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <AppContent />
+        <Routes>
+          <Route path="/" element={<MainApp />} />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
       </LanguageProvider>
     </ThemeProvider>
   );

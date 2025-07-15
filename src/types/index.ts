@@ -19,8 +19,10 @@ export interface Item {
 }
 
 export interface Build {
+  id?: number;
   heroId: string;
   mood: Mood;
+  score?: number;
   items: Item[];
   playstyle: {
     dos: string[];

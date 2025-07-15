@@ -19,5 +19,12 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+[dev]
+  autoLaunch = true
+  framework = "vite"
+  # Disable automatic installation of extensions
+  autoInstall = false
+  node_bundler = "esbuild"
   
 # Environment variables will be set in Netlify dashboard
