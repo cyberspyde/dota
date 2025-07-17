@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AdminDashboard } from './AdminDashboard';
+import './admin-panel.css';
 
 export const Admin: React.FC = () => {
   const [password, setPassword] = useState('');

@@ -21,6 +21,7 @@ function MainApp() {
   const [currentHero, setCurrentHero] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [heroes, setHeroes] = useState<Hero[]>([]);
+  const [searchHeroes, setSearchHeroes] = useState<Hero[]>([]);
   const [totalHeroes, setTotalHeroes] = useState(0);
   const [offset, setOffset] = useState(0);
   const [builds, setBuilds] = useState<Build[]>([]);
@@ -55,6 +56,17 @@ function MainApp() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Load all heroes for search
+  const loadAllHeroes = async () => {
+    try {
+      const heroesResult = await apiService.getHeroes(1000, 0); // Get all heroes
+      return heroesResult.heroes;
+    } catch (err) {
+      console.error('Failed to load all heroes:', err);
+      return [];
+    }
+  };
 
   const loadInitialData = async () => {
     try {
@@ -121,12 +133,28 @@ function MainApp() {
 
   const handleHeroSelect = (hero: Hero) => {
     setCurrentHero(hero.id);
+    
+    // Find all builds for this hero
+    const heroBuilds = builds.filter(b => b.heroId === hero.id);
+    
+    if (heroBuilds.length > 0) {
+      // If there's a build for the current mood, keep it
+      if (!selectedMood || !heroBuilds.some(b => b.mood === selectedMood)) {
+        // Otherwise, select the first available mood for this hero
+        setSelectedMood(heroBuilds[0].mood);
+      }
+    }
+
+    // Add hero to main list if not already there
+    if (!heroes.some(h => h.id === hero.id)) {
+      setHeroes(prev => [...prev, hero]);
+    }
   };
 
   const handleReroll = () => {
     if (heroes.length > 0) {
       const hero = heroes[Math.floor(Math.random() * heroes.length)];
-      setCurrentHero(hero.id);
+      handleHeroSelect(hero); // Use the same logic for reroll
     }
   };
   
@@ -134,7 +162,9 @@ function MainApp() {
     setCurrentHero(null);
   };
 
-  const selectedHero = currentHero ? heroes.find(h => h.id === currentHero) : null;
+  const selectedHero = currentHero 
+    ? (heroes.find(h => h.id === currentHero) || searchHeroes.find(h => h.id === currentHero))
+    : null;
   const selectedBuild = selectedHero && selectedMood ? builds.find(b => b.heroId === selectedHero.id && b.mood === selectedMood) : null;
 
   if (loading && heroes.length === 0) {
@@ -199,7 +229,11 @@ function MainApp() {
         <header className="header">
           <div className="header-controls">
             <button
-              onClick={() => setIsSearchOpen(true)}
+              onClick={async () => {
+                const allHeroes = await loadAllHeroes();
+                setSearchHeroes(allHeroes);
+                setIsSearchOpen(true);
+              }}
               className="btn btn-secondary"
               title={t('hero.search.button') || 'Search Heroes'}
             >
@@ -229,7 +263,7 @@ function MainApp() {
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           onHeroSelect={handleHeroSelect}
-          heroes={heroes}
+          heroes={searchHeroes}
           builds={builds}
         />
         
@@ -247,38 +281,43 @@ function MainApp() {
           <MoodSelector selectedMood={selectedMood} onMoodSelect={handleMoodSelect} />
         </div>
 
-        <div className="hero-grid">
-          {heroes.map(hero => {
-            const buildScore = selectedMood 
-              ? builds.find(b => b.heroId === hero.id && b.mood === selectedMood)?.score
-              : heroAverageScores[hero.id];
-            
-            return (
-              <div key={hero.id} onClick={() => handleHeroSelect(hero)} style={{ cursor: 'pointer' }}>
-                <HeroCard hero={hero} score={buildScore} />
-              </div>
-            );
-          })}
-        </div>
-        
-        {loadingMore && <div className="loading-text text-center my-4">LOADING...</div>}
-
-        {!loading && heroes.length < totalHeroes && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
-            <button onClick={handleLoadMore} className="btn btn-primary" disabled={loadingMore}>
-              <MoreHorizontal size={16} />
-              {loadingMore ? 'LOADING...' : 'LOAD MORE HEROES'}
-            </button>
-          </div>
-        )}
-
-        {heroes.length === 0 && !loading && (
+        {!selectedMood ? (
           <div className="welcome-screen">
             <div className="welcome-icon">🤔</div>
             <div className="welcome-message">
-              {`NO HEROES FOUND FOR '${(selectedMood || '').toUpperCase()}' PROTOCOL. TRY ANOTHER.`}
+              Please select a mood to display corresponding heroes.
             </div>
           </div>
+        ) : (
+          <>
+            <div className="hero-grid">
+              {heroes.map(hero => {
+                const buildScore = builds.find(b => b.heroId === hero.id && b.mood === selectedMood)?.score;
+                return (
+                  <div key={hero.id} onClick={() => handleHeroSelect(hero)} style={{ cursor: 'pointer' }}>
+                    <HeroCard hero={hero} score={buildScore} />
+                  </div>
+                );
+              })}
+            </div>
+            {loadingMore && <div className="loading-text text-center my-4">LOADING...</div>}
+            {!loading && heroes.length < totalHeroes && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
+                <button onClick={handleLoadMore} className="btn btn-primary" disabled={loadingMore}>
+                  <MoreHorizontal size={16} />
+                  {loadingMore ? 'LOADING...' : 'LOAD MORE HEROES'}
+                </button>
+              </div>
+            )}
+            {heroes.length === 0 && !loading && (
+              <div className="welcome-screen">
+                <div className="welcome-icon">🤔</div>
+                <div className="welcome-message">
+                  {`NO HEROES FOUND FOR '${(selectedMood || '').toUpperCase()}' PROTOCOL. TRY ANOTHER.`}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

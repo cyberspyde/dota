@@ -13,12 +13,12 @@ export const ConnectionStatus: React.FC = () => {
     try {
       setStatus('checking');
       
-      const [heroes, builds] = await Promise.all([
-        apiService.getHeroes(),
+      const [heroesResult, builds] = await Promise.all([
+        apiService.getHeroes(1000, 0), // Get first 1000 heroes to get total count
         apiService.getBuilds()
       ]);
       
-      setHeroCount(heroes.length);
+      setHeroCount(heroesResult.total);
       setBuildCount(builds.length);
       setStatus('connected');
     } catch (error) {

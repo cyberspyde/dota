@@ -124,15 +124,14 @@ export const BuildManager: React.FC = () => {
         </table>
       </div>
 
-      {isModalOpen && (
-        <BuildForm
-          build={selectedBuild}
-          heroId={selectedHeroId}
-          onClose={handleCloseModal}
-          onSave={handleSave}
-          password="ilhomcha"
-        />
-      )}
+      <BuildForm
+        build={selectedBuild}
+        heroId={selectedHeroId}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSave={handleSave}
+        password="ilhomcha"
+      />
     </div>
   );
 }; 

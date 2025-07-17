@@ -22,7 +22,7 @@ body {
 }
 
 [data-theme="light"] .card {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(0, 123, 255, 0.3);
   color: #212529;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
@@ -31,6 +31,31 @@ body {
 [data-theme="light"] .card:hover {
   border-color: rgba(0, 123, 255, 0.5);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .hero-name {
+  color: #1a1a2e !important;
+}
+
+[data-theme="light"] .hero-info svg {
+  color: #0d6efd !important;
+}
+
+[data-theme="light"] .hero-card-grid-item {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+[data-theme="light"] .hero-card-score {
+  color: #212529 !important;
+}
+
+[data-theme="light"] .app-title {
+  color: #0d6efd !important;
+  text-shadow: 0 0 20px rgba(13, 110, 253, 0.3) !important;
+}
+
+[data-theme="light"] .subtitle {
+  color: #495057 !important;
 }
 
 [data-theme="light"] .btn {
@@ -48,6 +73,64 @@ body {
 [data-theme="light"] .btn-primary {
   border-color: rgba(40, 167, 69, 0.4);
   color: #198754;
+}
+
+[data-theme="light"] .mood-grid {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="light"] .mood-item {
+  color: #212529;
+  border-color: rgba(13, 110, 253, 0.3);
+}
+
+[data-theme="light"] .mood-item:hover {
+  border-color: rgba(13, 110, 253, 0.6);
+  background: rgba(13, 110, 253, 0.1);
+}
+
+[data-theme="light"] .mood-item.selected {
+  border-color: #0d6efd;
+  background: rgba(13, 110, 253, 0.15);
+}
+
+[data-theme="light"] .build-header {
+  color: #212529;
+}
+
+[data-theme="light"] .build-section-title {
+  color: #0d6efd;
+}
+
+[data-theme="light"] .build-item {
+  border-color: rgba(13, 110, 253, 0.3);
+}
+
+[data-theme="light"] .build-item:hover {
+  border-color: rgba(13, 110, 253, 0.6);
+  background: rgba(13, 110, 253, 0.05);
+}
+
+[data-theme="light"] .build-item-name {
+  color: #212529;
+}
+
+[data-theme="light"] .build-item-description {
+  color: #495057;
+}
+
+[data-theme="light"] .build-phase {
+  color: #0d6efd;
+}
+
+[data-theme="light"] .build-priority {
+  background: rgba(13, 110, 253, 0.1);
+  color: #0d6efd;
+  border-color: rgba(13, 110, 253, 0.3);
+}
+
+[data-theme="light"] .welcome-message {
+  color: #495057;
 }
 
 [data-theme="light"] .btn-primary:hover {

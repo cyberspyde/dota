@@ -104,47 +104,47 @@
 }
 
 .admin-search-input {
-  @apply w-full px-4 py-2.5 rounded-xl border border-border/50 bg-background/50
+  @apply w-full px-4 py-2.5 rounded-xl bg-background/50 
+  border border-border/50 backdrop-blur-sm
   focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
-  placeholder:text-muted-foreground transition-all duration-200;
+  text-foreground placeholder:text-muted-foreground transition-all duration-200;
 }
 
 .admin-actions {
-  @apply flex flex-wrap gap-2;
-}
-
-.admin-grid {
-  @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6;
-}
-
-.admin-card {
-  @apply p-4 rounded-xl border border-border/50 bg-background/50 
-  hover:bg-accent/5 hover:border-border
-  transition-all duration-200 cursor-pointer shadow-sm;
-}
-
-.admin-card-header {
-  @apply flex justify-between items-start mb-4;
-}
-
-.admin-card-title {
-  @apply font-medium text-lg;
-}
-
-.admin-card-actions {
   @apply flex gap-2;
 }
 
+.admin-grid {
+  @apply grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+}
+
+.admin-card {
+  @apply p-4 rounded-xl bg-background/50 border border-border/50 backdrop-blur-sm
+  hover:shadow-md transition-all duration-200 hover:border-primary/20;
+}
+
+.admin-card-header {
+  @apply flex justify-between items-start mb-2;
+}
+
+.admin-card-title {
+  @apply font-semibold text-foreground;
+}
+
+.admin-card-actions {
+  @apply flex gap-1;
+}
+
 .admin-form {
-  @apply space-y-6 max-w-2xl mx-auto;
+  @apply space-y-6 bg-background/50 p-6 rounded-xl border border-border/50;
 }
 
 .admin-form-section {
-  @apply space-y-4 p-4 rounded-xl bg-muted/50 border border-border/50;
+  @apply space-y-4 p-4 rounded-lg bg-muted/30 border border-border/30;
 }
 
 .admin-form-title {
-  @apply text-lg font-medium pb-2 border-b border-border;
+  @apply text-lg font-semibold text-foreground mb-4;
 }
 
 .admin-form-group {
@@ -152,11 +152,365 @@
 }
 
 .admin-label {
-  @apply text-sm font-medium text-muted-foreground;
+  @apply text-sm font-medium text-foreground;
 }
 
 .admin-input {
-  @apply w-full px-4 py-2.5 rounded-xl border border-border/50 bg-background/50
+  @apply w-full px-4 py-2.5 rounded-xl bg-background/50
+  border border-border/50 backdrop-blur-sm
   focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
-  placeholder:text-muted-foreground transition-all duration-200;
+  text-foreground placeholder:text-muted-foreground transition-all duration-200;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.modal-backdrop {
+  @apply absolute inset-0 bg-black/50 backdrop-blur-sm;
+}
+
+.modal-container {
+  @apply relative w-full mx-auto bg-background rounded-2xl shadow-2xl 
+  border border-border/50 max-h-[90vh] overflow-hidden;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-content {
+  @apply flex flex-col max-h-[90vh];
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-6 border-b border-border/50 
+  bg-background/80 backdrop-blur-sm;
+}
+
+.modal-title {
+  @apply text-xl font-semibold text-foreground;
+}
+
+.modal-close-btn {
+  @apply p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground
+  transition-colors duration-200;
+}
+
+.modal-body {
+  @apply flex-1 overflow-y-auto p-6;
+}
+
+/* Form Styles */
+.form-section {
+  @apply space-y-4 p-6 rounded-xl bg-muted/30 border border-border/30;
+}
+
+.form-section-header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.form-section-title {
+  @apply text-lg font-semibold text-foreground flex items-center gap-2;
+}
+
+.form-grid {
+  @apply grid gap-4 grid-cols-1 md:grid-cols-2;
+}
+
+.form-group {
+  @apply space-y-2;
+}
+
+.form-group.full-width {
+  @apply md:col-span-2;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-foreground;
+}
+
+.form-input {
+  @apply w-full px-4 py-2.5 rounded-xl bg-background/50
+  border border-border/50 backdrop-blur-sm
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  text-foreground placeholder:text-muted-foreground transition-all duration-200;
+}
+
+.form-input-error {
+  @apply border-red-300 focus:border-red-500 focus:ring-red-500/20;
+}
+
+.form-textarea {
+  @apply w-full px-4 py-2.5 rounded-xl bg-background/50
+  border border-border/50 backdrop-blur-sm resize-none
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  text-foreground placeholder:text-muted-foreground transition-all duration-200;
+}
+
+.form-select {
+  @apply w-full px-4 py-2.5 rounded-xl bg-background/50
+  border border-border/50 backdrop-blur-sm
+  focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50
+  text-foreground transition-all duration-200;
+}
+
+.form-error {
+  @apply flex items-center gap-1 text-red-600 text-sm font-medium;
+}
+
+.form-actions {
+  @apply flex justify-end gap-3 pt-6 border-t border-border/30;
+}
+
+/* Button Styles */
+.btn {
+  @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium
+  transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 
+  focus:ring-primary/20;
+}
+
+.btn-secondary {
+  @apply bg-muted text-muted-foreground hover:bg-muted/80 
+  focus:ring-muted/20;
+}
+
+.btn-outline {
+  @apply border border-border/50 bg-background/50 text-foreground 
+  hover:bg-muted/50 focus:ring-primary/20;
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
+.btn-icon {
+  @apply p-2 rounded-lg transition-colors duration-200;
+}
+
+.btn-danger {
+  @apply text-red-600 hover:bg-red-50 hover:text-red-700;
+}
+
+/* Mood Styles */
+.mood-grid {
+  @apply grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5;
+}
+
+.mood-grid-compact {
+  @apply grid gap-2 grid-cols-3 md:grid-cols-5;
+}
+
+.mood-button {
+  @apply flex flex-col items-center gap-2 p-4 rounded-xl border-2 
+  transition-all duration-200 hover:scale-105;
+}
+
+.mood-button-compact {
+  @apply flex items-center gap-2 p-3 rounded-lg border-2 text-sm
+  transition-all duration-200 hover:scale-105;
+}
+
+.mood-button-active {
+  @apply border-current bg-current/10 font-medium;
+}
+
+.mood-button-inactive {
+  @apply border-border/50 bg-background/50 text-muted-foreground
+  hover:border-primary/30 hover:bg-primary/5;
+}
+
+/* Array Input Styles */
+.array-inputs {
+  @apply space-y-3;
+}
+
+.array-input-group {
+  @apply flex gap-2 items-center;
+}
+
+/* Item Form Styles */
+.items-grid {
+  @apply grid gap-4 grid-cols-1 lg:grid-cols-2;
+}
+
+.item-form-card {
+  @apply p-4 rounded-xl bg-background/50 border border-border/50 space-y-4;
+}
+
+.item-form-header {
+  @apply flex items-center justify-between;
+}
+
+.item-index {
+  @apply text-sm font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded;
+}
+
+.item-form-grid {
+  @apply grid gap-3 grid-cols-1 sm:grid-cols-2;
+}
+
+.item-badges {
+  @apply flex gap-2 flex-wrap;
+}
+
+.badge {
+  @apply px-2 py-1 text-xs font-medium rounded-md border;
+}
+
+/* Playstyle Styles */
+.playstyle-grid {
+  @apply grid gap-4 grid-cols-1 lg:grid-cols-3;
+}
+
+.playstyle-section {
+  @apply space-y-3;
+}
+
+.playstyle-header {
+  @apply flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50;
+}
+
+.playstyle-header h4 {
+  @apply text-sm font-medium flex items-center gap-2;
+}
+
+.playstyle-items {
+  @apply space-y-2;
+}
+
+.playstyle-input-group {
+  @apply flex gap-2 items-center;
+}
+
+/* Gameplan Styles */
+.gameplan-grid {
+  @apply grid gap-4 grid-cols-1 lg:grid-cols-3;
+}
+
+.gameplan-phase {
+  @apply space-y-2;
+}
+
+.gameplan-label {
+  @apply text-sm font-medium;
+}
+
+.gameplan-label.early {
+  @apply text-green-600;
+}
+
+.gameplan-label.mid {
+  @apply text-blue-600;
+}
+
+.gameplan-label.late {
+  @apply text-purple-600;
+}
+
+/* Animations */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Table Styles */
+.admin-table-container {
+  @apply overflow-x-auto rounded-xl border border-border/50;
+}
+
+.admin-table {
+  @apply w-full text-sm;
+}
+
+.admin-table th {
+  @apply px-4 py-3 text-left font-medium text-muted-foreground bg-muted/50 border-b border-border/50;
+}
+
+.admin-table td {
+  @apply px-4 py-3 border-b border-border/50 text-foreground;
+}
+
+.admin-table tr:hover {
+  @apply bg-muted/30;
+}
+
+.admin-section-header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.admin-section-title {
+  @apply text-xl font-semibold text-foreground;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .modal-container {
+    @apply mx-2 max-h-[95vh];
+  }
+  
+  .modal-header,
+  .modal-body {
+    @apply px-4;
+  }
+  
+  .form-grid {
+    @apply grid-cols-1;
+  }
+  
+  .mood-grid {
+    @apply grid-cols-2;
+  }
+  
+  .items-grid,
+  .playstyle-grid,
+  .gameplan-grid {
+    @apply grid-cols-1;
+  }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .modal-backdrop {
+  @apply bg-black/70;
+}
+
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .form-textarea,
+[data-theme="dark"] .form-select {
+  @apply bg-background/30;
+}
+
+[data-theme="dark"] .badge {
+  @apply bg-opacity-20;
 }

@@ -97,14 +97,13 @@ export const HeroManager: React.FC = () => {
         </table>
       </div>
 
-      {isModalOpen && (
-        <HeroForm
-          hero={selectedHero}
-          onClose={handleCloseModal}
-          onSave={handleSave}
-          password="ilhomcha" // Using hardcoded password for now
-        />
-      )}
+      <HeroForm
+        hero={selectedHero}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSave={handleSave}
+        password="ilhomcha" // Using hardcoded password for now
+      />
     </div>
   );
 }; 
