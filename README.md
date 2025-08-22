@@ -147,6 +147,25 @@ Ensure these are set in Netlify:
 - `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
 
+### ⏰ Keeping Supabase Awake (Scheduled Keepalive)
+
+Free Supabase projects can pause after a period of inactivity (leading to a slow first request). This repo includes a Netlify Scheduled Function (`keepalive`) that runs daily (06:00 UTC) and performs a minimal read query against the database so it stays active.
+
+How it works:
+- Function file: `netlify/functions/keepalive.ts`
+- Schedule defined in `netlify.toml` under `[[scheduled.functions]]`
+- Executes a single lightweight `SELECT id FROM heroes LIMIT 1`
+
+To adjust frequency:
+1. Edit the cron expression in `netlify.toml` (e.g., `0 */6 * * *` for every 6 hours)
+2. Commit & deploy – Netlify applies the new schedule automatically.
+
+To verify it runs:
+- Check Netlify -> Functions -> Scheduled Functions -> Logs
+- Or manually invoke: `curl https://<your-site>.netlify.app/.netlify/functions/keepalive`
+
+If you prefer an external uptime pinger instead, you can disable this by removing the `[[scheduled.functions]]` block.
+
 ## 📁 Project Structure
 
 ```

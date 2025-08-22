@@ -28,3 +28,12 @@
   node_bundler = "esbuild"
   
 # Environment variables will be set in Netlify dashboard
+
+# -------------------------------------------------------------------
+# Scheduled Functions
+# Daily keepalive ping so Supabase project never idles (runs 06:00 UTC)
+# Adjust cron as needed (cron format: min hour day month weekday)
+# -------------------------------------------------------------------
+[[scheduled.functions]]
+  name = "keepalive"
+  cron = "0 6 * * *"
