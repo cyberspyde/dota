@@ -88,21 +88,25 @@ Binaries go to `dist\`. Only `cyberspyde-agent.exe` goes to your friends; nothin
 
 ## Running
 
-### Host (you): the relay
+### The relay
+
+The team relay runs on an always-on server at **`dota.cyberspyde.uz`**, behind a TLS reverse proxy (Caddy). Agents connect to `wss://dota.cyberspyde.uz/ws` by default, so nobody's home internet has to stay up for the others. The team board is at `https://dota.cyberspyde.uz/#key=<team-key>`.
+
+To run your own relay instead:
 
 ```powershell
-.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key choose-a-long-team-key --team team.toml
+.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key-file team-key.txt --team team.toml
 ```
 
-`--team` is optional; without it nobody gets coaching aids. The file is re-read on every connect, so edits apply when a player reconnects.
-
-Open TCP port 4747 on that machine (and forward it on the router, if it's at home). The team board is at `http://<host>:4747/#key=<team-key>`.
+- `--key-file` keeps the key out of the command line; `--key <key>` and the `RELAY_KEY` variable also work.
+- `--team` is optional; without it nobody gets coaching aids. The file is re-read on every connect, so edits apply when a player reconnects.
+- Either open TCP port 4747 (players then enter the bare IP, which becomes `ws://<ip>:4747/ws`), or put the relay on `127.0.0.1:4747` behind a reverse proxy with a domain, which becomes `wss://<domain>/ws`.
 
 ### Every player: the agent
 
 1. Run `cyberspyde-agent.exe`. The first time, it asks a few questions in its console window:
    - your name (as the team knows you)
-   - the host's address (just the IP or domain)
+   - the host (press Enter for the team server, `dota.cyberspyde.uz`)
    - the team key
    - overlay size (small / normal / large) and side (left / right)
    - whether to show next-item help and the mini radar
@@ -135,7 +139,7 @@ The legacy database covers 62 heroes, alphabetically from Abaddon to Monkey King
 
 ## Security notes
 
-- The team key is checked by the relay. Traffic is plain `ws://`: game stats aren't secret, but don't reuse a real password as the key. For `wss://`, put the relay behind a TLS reverse proxy such as Caddy.
+- The team key is checked by the relay. Traffic to the team server is encrypted (`wss://`, certificate verified). A self-hosted relay on a bare IP uses plain `ws://`, so don't reuse a real password as the key.
 - The GSI receiver listens only on `127.0.0.1` and requires the random token written into Dota's cfg.
 
 ## Not yet built
