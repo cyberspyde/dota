@@ -138,8 +138,8 @@ function connect() {
         break;
       }
       case "callout": { const x = members.get(m.id); feed(`<b>${esc(x ? x.name : "?")}: ${m.kind.replace("_", " ").toUpperCase()}</b>`); break; }
-      case "note": { const x = members.get(m.id); const to = m.to ? members.get(m.to) : null;
-        feed(`<b>${esc(x ? x.name : "?")}${to ? " -> " + esc(to.name) : ""}:</b> ${esc(m.text)}`); break; }
+      case "note": { const x = m.id === me ? {name: "you (board)"} : members.get(m.id) || {name: "team board"}; const to = m.to ? members.get(m.to) : null;
+        feed(`<b>${esc(x.name)}${to ? " -> " + esc(to.name) : ""}:</b> ${esc(m.text)}`); break; }
       case "pong": { const t = pingSent.get(m.id); if (t) $("rtt").textContent = `${Math.round(performance.now() - t)} ms`; pingSent.delete(m.id); break; }
       case "error": feed(`<b>relay:</b> ${esc(m.message)}`); break;
     }

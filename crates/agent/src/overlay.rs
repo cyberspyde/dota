@@ -29,6 +29,39 @@ const BLUE: Color32 = Color32::from_rgb(76, 141, 255);
 const MUTED: Color32 = Color32::from_rgb(150, 158, 172);
 const TEXT: Color32 = Color32::from_rgb(232, 235, 240);
 const DIM: Color32 = Color32::from_rgb(90, 96, 108);
+const TITLE: &str = "cyberspyde overlay";
+
+/// Click-through makes winit add WS_EX_LAYERED to the window, but it never
+/// calls SetLayeredWindowAttributes, and Windows does not draw a layered
+/// window that has none: the overlay renders but never reaches the screen.
+/// Setting full window opacity makes it visible again; per-pixel
+/// transparency still comes from the transparent GL surface.
+#[cfg(windows)]
+fn ensure_layered_visible() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, GetLayeredWindowAttributes, GetWindowLongPtrW, SetLayeredWindowAttributes, GWL_EXSTYLE,
+        LWA_ALPHA, WS_EX_LAYERED,
+    };
+    thread_local! {
+        static TITLE_W: Vec<u16> = TITLE.encode_utf16().chain(std::iter::once(0)).collect();
+    }
+    TITLE_W.with(|t| unsafe {
+        let hwnd = FindWindowW(std::ptr::null(), t.as_ptr());
+        if hwnd.is_null() {
+            return;
+        }
+        if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_LAYERED == 0 {
+            return;
+        }
+        let (mut key, mut alpha, mut flags) = (0u32, 0u8, 0u32);
+        if GetLayeredWindowAttributes(hwnd, &mut key, &mut alpha, &mut flags) == 0 {
+            SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+        }
+    });
+}
+
+#[cfg(not(windows))]
+fn ensure_layered_visible() {}
 
 #[derive(Clone, Copy)]
 enum Action {
@@ -61,7 +94,7 @@ pub fn run(
 ) -> eframe::Result<()> {
     let opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("cyberspyde overlay")
+            .with_title(TITLE)
             .with_inner_size([W * cfg.overlay.scale, H * cfg.overlay.scale])
             .with_position([cfg.overlay.x, cfg.overlay.y])
             .with_decorations(false)
@@ -191,6 +224,9 @@ impl eframe::App for OverlayApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Cheap (two syscalls) and self-healing: winit re-applies the
+        // layered style whenever click-through is toggled.
+        ensure_layered_visible();
         self.poll_hotkeys(ctx);
         // Timers (respawn, cooldowns) tick between data updates; data updates
         // themselves repaint immediately through the Notifier.

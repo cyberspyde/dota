@@ -101,7 +101,9 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
                 text: "Group mid after my BKB, smoke at 14:00".into(),
             });
         }
-        for (id, _, st) in mates.iter_mut() {
+        for (id, name, st) in mates.iter_mut() {
+            // The relay's Welcome resets the mate list, so re-add fakes by name.
+            team.lock().unwrap().mates.entry(*id).or_insert_with(|| crate::team::Mate::new(*id, (*name).into()));
             st.clock = clock;
             if *id != 1003 {
                 st.x += ((n as f32 + *id as f32) / 20.0).sin() * 12.0;

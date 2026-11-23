@@ -9,6 +9,14 @@ A team coordination tool for a 5-stack. Each player shares **their own** game st
 - **A build helper for your hero**: next item and gold still needed, skill-order reminders, game-plan tips. It comes from the old CYBERSPYDE build database, plus builds your pro friend writes **once** instead of explaining them every game.
 - **A team board** web page (for a second monitor or a phone) where anyone can send tips to one player or the whole team.
 
+| Normal | A teammate getting ganked |
+|---|---|
+| ![Overlay](docs/screenshots/overlay.png) | ![Gank alert](docs/screenshots/overlay-gank-alert.png) |
+
+These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. The team board looks like this:
+
+![Team board](docs/screenshots/team-board.jpg)
+
 ## Fair play
 
 The tool uses only Valve's official **Game State Integration (GSI)**. In player mode, Dota sends each player only their own hero, items and abilities. Sharing that with your own team is the same as reading it out on voice chat, just faster and without the shouting. It never reads game memory or injects anything, and it shows **nothing about enemies**. Spectator/observer feeds are explicitly ignored (`gsi.rs`).

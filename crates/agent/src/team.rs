@@ -177,7 +177,8 @@ impl Team {
         if Some(id) == self.my_id {
             return self.my_name.clone();
         }
-        self.mates.get(&id).map(|m| m.name.clone()).unwrap_or_else(|| format!("#{id}"))
+        // Viewers (the team board) are not in the mate list.
+        self.mates.get(&id).map(|m| m.name.clone()).unwrap_or_else(|| "Team board".to_string())
     }
 
     pub fn apply(&mut self, msg: ServerMsg) {
@@ -220,6 +221,8 @@ impl Team {
                 let to_me = to.is_none() || to == self.my_id;
                 if to_me {
                     let from = self.name_of(id);
+                    // A repeated tip refreshes the old one instead of stacking.
+                    self.notes.retain(|n| !(n.from == from && n.text == text));
                     self.notes.push_back(NoteEv { from, to_me: to.is_some(), text, at: now });
                     while self.notes.len() > 5 {
                         self.notes.pop_front();
