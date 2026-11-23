@@ -3,7 +3,7 @@
 //! from each teammate's own state stream, so an alert appears on screen the
 //! moment that teammate's health update arrives -- no extra round trip.
 
-use protocol::{hero_display, CalloutKind, Coaching, PlayerState, ServerMsg};
+use protocol::{CalloutKind, Coaching, PlayerState, ServerMsg};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex, OnceLock},
@@ -23,6 +23,11 @@ pub const NOTE_TTL: Duration = Duration::from_secs(45);
 pub const MAP_HALF: f32 = 8200.0;
 /// How far back movement is measured.
 pub const MOVE_WINDOW: Duration = Duration::from_millis(1500);
+
+/// Compact distance: 7015 -> "7.0k".
+pub fn km(d: f32) -> String {
+    format!("{:.1}k", d / 1000.0)
+}
 
 #[derive(Clone, Debug)]
 pub struct Mate {
@@ -282,23 +287,18 @@ impl Team {
             let Some(st) = &m.state else { continue };
             match m.status(now) {
                 Status::UnderAttack => {
-                    let mut t = format!(
-                        "{} ({}) UNDER ATTACK {:.0}% HP",
-                        m.name,
-                        hero_display(&st.hero),
-                        st.hp_frac() * 100.0
-                    );
+                    let mut t = format!("{} under attack {:.0}%", m.name, st.hp_frac() * 100.0);
                     if let Some(me) = mine.filter(|s| s.alive && s.has_pos && st.has_pos) {
                         let d = ((me.x - st.x).powi(2) + (me.y - st.y).powi(2)).sqrt();
                         if d <= 1500.0 {
-                            t.push_str(" - right next to you");
+                            t.push_str(" - next to you");
                         } else {
-                            t.push_str(&format!(" - {:.0} away", d));
+                            t.push_str(&format!(" - {} away", km(d)));
                             // TP only matters when walking would take too long.
                             if d > 3000.0 {
                                 match me.tp_cooldown() {
-                                    Some(0) => t.push_str(", your TP is ready"),
-                                    Some(cd) => t.push_str(&format!(", your TP {cd}s")),
+                                    Some(0) => t.push_str(", TP ready"),
+                                    Some(cd) => t.push_str(&format!(", TP {cd}s")),
                                     None => {}
                                 }
                             }
@@ -310,13 +310,13 @@ impl Team {
                     let bb = if st.buyback_cooldown > 0 {
                         format!("buyback cd {}s", st.buyback_cooldown)
                     } else if st.gold >= st.buyback_cost {
-                        "buyback READY".to_string()
+                        "buyback ready".to_string()
                     } else {
-                        format!("no buyback gold ({}/{})", st.gold, st.buyback_cost)
+                        "no buyback gold".to_string()
                     };
                     out.push(Alert {
                         severity: Severity::Warn,
-                        text: format!("{} dead - back in {}s, {}", m.name, st.respawn_seconds, bb),
+                        text: format!("{} dead {}s, {}", m.name, st.respawn_seconds, bb),
                     });
                 }
                 _ => {}
@@ -324,7 +324,7 @@ impl Team {
         }
         let dead = self.mates.values().filter(|m| m.status(now) == Status::Dead).count();
         if dead >= 2 {
-            out.push(Alert { severity: Severity::Danger, text: format!("{dead} teammates dead - play safe, don't take fights") });
+            out.push(Alert { severity: Severity::Danger, text: format!("{dead} dead - play safe") });
         }
         for c in &self.callouts {
             out.push(Alert { severity: Severity::Warn, text: format!("{}: {}", c.from, c.kind.label()) });
@@ -417,8 +417,8 @@ mod tests {
         team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a });
         let alerts = team.alerts(Instant::now());
         assert_eq!(alerts[0].severity, Severity::Danger);
-        assert!(alerts[0].text.contains("4000 away"), "{}", alerts[0].text);
-        assert!(alerts[0].text.contains("TP is ready"));
+        assert!(alerts[0].text.contains("4.0k away"), "{}", alerts[0].text);
+        assert!(alerts[0].text.contains("TP ready"));
 
         // Close by: no distance or TP advice, just "right next to you".
         let mut b = st(1000, true);
@@ -428,6 +428,6 @@ mod tests {
         b.health = 700;
         team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b });
         let alerts = team.alerts(Instant::now());
-        assert!(alerts.iter().any(|a| a.text.contains("right next to you") && !a.text.contains("TP")));
+        assert!(alerts.iter().any(|a| a.text.contains("next to you") && !a.text.contains("TP")));
     }
 }

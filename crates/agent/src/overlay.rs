@@ -11,7 +11,7 @@ use eframe::egui::{self, Color32, CornerRadius, Pos2, Rect, RichText, Sense, Str
 use global_hotkey::{
     hotkey::HotKey, GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
 };
-use protocol::{hero_display, is_key_item, item_short, CalloutKind, ClientMsg};
+use protocol::{is_key_item, item_short, CalloutKind, ClientMsg};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -20,13 +20,13 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-const W: f32 = 330.0;
-const H: f32 = 700.0;
+const W: f32 = crate::setup::OVERLAY_W;
+/// Tall enough for 5 rows, alerts, radar and build help; the rest is transparent.
+const H: f32 = 520.0;
 
 const RED: Color32 = Color32::from_rgb(248, 81, 73);
 const AMBER: Color32 = Color32::from_rgb(240, 180, 41);
 const GREEN: Color32 = Color32::from_rgb(63, 185, 80);
-const BLUE: Color32 = Color32::from_rgb(76, 141, 255);
 const MUTED: Color32 = Color32::from_rgb(150, 158, 172);
 const TEXT: Color32 = Color32::from_rgb(232, 235, 240);
 const DIM: Color32 = Color32::from_rgb(90, 96, 108);
@@ -236,7 +236,7 @@ impl eframe::App for OverlayApp {
         ctx.request_repaint_after(Duration::from_millis(200));
 
         let now = Instant::now();
-        let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, notes) = {
+        let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, note) = {
             let mut t = self.team.lock().unwrap();
             t.prune(now);
             let coach = self.coach.evaluate(&t, now);
@@ -253,9 +253,10 @@ impl eframe::App for OverlayApp {
                 t.rtt_ms,
                 t.last_gsi,
                 t.callouts.iter().cloned().collect::<Vec<_>>(),
-                t.notes.iter().cloned().collect::<Vec<_>>(),
+                t.notes.back().cloned(),
             )
         };
+        let s = coach.scale;
 
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
             if self.edit {
@@ -269,185 +270,145 @@ impl eframe::App for OverlayApp {
             }
             let alpha = (self.cfg.overlay.opacity.clamp(0.0, 1.0) * 255.0) as u8;
             let mut frame = egui::Frame::new()
-                .fill(Color32::from_rgba_unmultiplied(12, 14, 19, alpha))
-                .corner_radius(8.0)
-                .inner_margin(10.0);
+                .fill(Color32::from_rgba_unmultiplied(10, 12, 16, alpha))
+                .corner_radius(6.0)
+                .inner_margin(egui::Margin::symmetric(8, 6));
             if self.edit {
-                frame = frame.stroke(Stroke::new(2.0_f32, AMBER));
+                frame = frame.stroke(Stroke::new(1.5_f32, AMBER));
             }
             frame.show(ui, |ui| {
-                ui.set_width(W - 20.0);
-                ui.spacing_mut().item_spacing = Vec2::new(6.0, 3.0);
+                ui.set_width(W - 16.0);
+                ui.spacing_mut().item_spacing = Vec2::new(4.0, 2.0);
 
-                // Header
+                // Status: one tiny line; words only when something is wrong.
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("TEAM").strong().color(TEXT).size(13.0));
                     if connected {
-                        dot(ui, GREEN);
-                        let ms = rtt.map(|r| format!("{r:.0} ms")).unwrap_or_else(|| "-- ms".into());
-                        ui.label(RichText::new(format!("relay {ms}")).color(MUTED).size(11.0));
-                        ui.label(RichText::new(format!("{} online", mates.len() + 1)).color(MUTED).size(11.0));
+                        dot(ui, GREEN, 3.0);
+                        let ms = rtt.map(|r| format!("{r:.0}ms")).unwrap_or_default();
+                        small(ui, &format!("{ms}  {}/5", mates.len() + 1), DIM);
                     } else {
-                        dot(ui, RED);
-                        ui.label(RichText::new("relay offline").color(RED).size(11.0));
+                        dot(ui, RED, 3.0);
+                        small(ui, "offline", RED);
+                    }
+                    if last_gsi.is_none_or(|t| now.duration_since(t) > Duration::from_secs(20)) {
+                        small(ui, "waiting for Dota", AMBER);
+                    }
+                    if let Some((msg, at)) = &self.flash {
+                        if now.duration_since(*at) < Duration::from_secs(2) {
+                            small(ui, msg, GREEN);
+                        }
                     }
                 });
                 if let Some(e) = err.as_ref().filter(|_| !connected) {
-                    ui.label(RichText::new(e).color(RED).size(10.5));
-                }
-                if last_gsi.is_none_or(|t| now.duration_since(t) > Duration::from_secs(20)) {
-                    ui.label(
-                        RichText::new("No game data yet. Restart Dota with launch option -gamestateintegration")
-                            .color(AMBER)
-                            .size(10.5),
-                    );
+                    one_line(ui, RichText::new(e).color(RED).size(10.0));
                 }
                 if self.edit {
-                    ui.label(RichText::new("MOVE MODE: drag to move, press the edit key to lock").color(AMBER).size(11.0));
+                    one_line(ui, RichText::new("MOVE: drag, then press the move key").color(AMBER).size(10.5));
                 }
-                for e in self.hk_errors.iter().take(2) {
-                    ui.label(RichText::new(format!("hotkey {e}")).color(DIM).size(10.0));
-                }
-                if let Some((msg, at)) = &self.flash {
-                    if now.duration_since(*at) < Duration::from_secs(2) {
-                        ui.label(RichText::new(msg).color(GREEN).size(11.0));
-                    }
+                if let Some(e) = self.hk_errors.first() {
+                    one_line(ui, RichText::new(format!("hotkey {e}")).color(DIM).size(9.5));
                 }
 
-                // One big instruction
+                // One big instruction.
                 if let Some((text, sev)) = &coach.banner {
                     let c = if *sev == Severity::Danger { RED } else { AMBER };
-                    ui.add_space(4.0);
+                    ui.add_space(2.0);
                     egui::Frame::new()
-                        .fill(c.gamma_multiply(0.18))
-                        .stroke(Stroke::new(1.5_f32, c))
-                        .corner_radius(6.0)
-                        .inner_margin(6.0)
+                        .fill(c.gamma_multiply(0.2))
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(6, 3))
                         .show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            ui.label(RichText::new(text).color(c).strong().size(15.5 * coach.scale));
+                            ui.label(RichText::new(text).color(c).strong().size(13.5 * s));
                         });
                 }
 
-                // Alerts
-                if !alerts.is_empty() {
-                    ui.add_space(4.0);
-                    for a in alerts.iter().take(5) {
-                        let (c, size) = match a.severity {
-                            Severity::Danger => (RED, 13.5),
-                            Severity::Warn => (AMBER, 12.0),
-                            Severity::Good => (GREEN, 12.5),
-                        };
-                        ui.label(RichText::new(&a.text).color(c).size(size * coach.scale).strong());
-                    }
+                // Alerts: at most three, short.
+                for a in alerts.iter().take(3) {
+                    let (c, size) = match a.severity {
+                        Severity::Danger => (RED, 12.0),
+                        Severity::Warn => (AMBER, 11.0),
+                        Severity::Good => (GREEN, 11.0),
+                    };
+                    ui.label(RichText::new(&a.text).color(c).size(size * s).strong());
                 }
 
-                // Team rows (compact during a fight when focus is on)
-                ui.add_space(6.0);
+                // One line per player.
+                ui.add_space(3.0);
                 if let Some(me) = &me {
-                    mate_row(ui, me, now, true, coach.focus);
+                    row(ui, me, now, true);
                 }
                 for m in &mates {
-                    mate_row(ui, m, now, false, coach.focus);
+                    row(ui, m, now, false);
                 }
-                if mates.is_empty() {
-                    ui.label(RichText::new("No teammates connected yet").color(DIM).size(11.0));
+                if mates.is_empty() && connected {
+                    one_line(ui, RichText::new("no teammates yet").color(DIM).size(10.0));
                 }
 
-                // Radar
-                if self.cfg.overlay.show_radar {
-                    ui.add_space(6.0);
+                if self.cfg.overlay.show_radar && !coach.focus {
+                    ui.add_space(4.0);
                     radar(ui, me.as_ref(), &mates, &callouts, now);
                 }
 
-                // Build helper (hidden mid-fight when focus is on)
+                // Build help: one line (plus tips if switched on).
                 if self.cfg.overlay.show_build && !coach.focus {
                     if let Some(st) = me.as_ref().and_then(|m| m.state.as_ref()) {
                         if let Some(adv) = advise(&self.db, st, &self.cfg.build_mood) {
-                            ui.add_space(6.0);
-                            ui.separator();
+                            ui.add_space(3.0);
                             if let Some(h) = &adv.skill_hint {
-                                ui.label(RichText::new(h).color(AMBER).strong().size(12.5));
+                                one_line(ui, RichText::new(h).color(AMBER).strong().size(11.0));
                             }
-                            match &adv.next {
-                                Some(next) => {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.label(RichText::new("NEXT").color(MUTED).size(11.0));
-                                        ui.label(RichText::new(&next.name).color(TEXT).strong().size(13.0));
-                                        if adv.gold_needed == 0 {
-                                            ui.label(RichText::new("BUY NOW").color(GREEN).strong().size(11.5));
-                                        } else {
-                                            ui.label(
-                                                RichText::new(format!("{}g, need {}", next.cost, adv.gold_needed))
-                                                    .color(MUTED)
-                                                    .size(11.0),
-                                            );
-                                        }
-                                    });
-                                    if !next.description.is_empty() {
-                                        ui.label(RichText::new(&next.description).color(MUTED).size(10.5));
+                            if let Some(next) = &adv.next {
+                                ui.horizontal(|ui| {
+                                    small(ui, "Next", DIM);
+                                    one_line(ui, RichText::new(&next.name).color(TEXT).size(11.0));
+                                    if adv.gold_needed == 0 {
+                                        small(ui, "BUY", GREEN);
+                                    } else {
+                                        small(ui, &format!("need {}", adv.gold_needed), MUTED);
                                     }
-                                    if !adv.after.is_empty() {
-                                        ui.label(
-                                            RichText::new(format!("then: {}", adv.after.join(", "))).color(MUTED).size(10.5),
-                                        );
-                                    }
-                                }
-                                None if adv.author.is_empty() => {
-                                    ui.label(
-                                        RichText::new(format!(
-                                            "No build saved for {} yet. Add one to builds.override.json.",
-                                            hero_display(&st.hero)
-                                        ))
-                                        .color(DIM)
-                                        .size(10.5),
-                                    );
-                                }
-                                None => {
-                                    ui.label(RichText::new("Build complete - situational items now").color(GREEN).size(11.0));
-                                }
+                                });
                             }
                             if !adv.skills.is_empty() {
-                                // Highlight the pick for the current level (T = talent works too).
-                                let next_idx = (st.level as usize).saturating_sub(1);
-                                let shown: Vec<String> = adv
-                                    .skills
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, s)| if i == next_idx { format!("[{s}]") } else { s.clone() })
-                                    .collect();
-                                ui.label(RichText::new(format!("Skills: {}", shown.join(" "))).color(TEXT).size(11.0));
+                                let i = (st.level as usize).saturating_sub(1);
+                                if let Some(k) = adv.skills.get(i) {
+                                    small(ui, &format!("Skill this level: {k}"), MUTED);
+                                }
                             }
-                            if !adv.phase_tip.is_empty() {
-                                ui.label(RichText::new(&adv.phase_tip).color(MUTED).size(10.5));
-                            }
-                            if let Some(t) = &adv.tip {
-                                ui.label(RichText::new(format!("Tip: {t}")).color(DIM).size(10.5));
-                            }
-                            if !adv.author.is_empty() {
-                                ui.label(RichText::new(format!("build by {}", adv.author)).color(DIM).size(9.5));
+                            if self.cfg.overlay.show_tips {
+                                if !adv.phase_tip.is_empty() {
+                                    ui.label(RichText::new(&adv.phase_tip).color(MUTED).size(10.0));
+                                }
+                                if let Some(t) = &adv.tip {
+                                    ui.label(RichText::new(t).color(DIM).size(10.0));
+                                }
                             }
                         }
                     }
                 }
 
-                // Notes from the team board
-                if !notes.is_empty() && !coach.focus {
-                    ui.add_space(4.0);
-                    ui.separator();
-                    for n in notes.iter().rev().take(3) {
-                        let c = if n.to_me { AMBER } else { TEXT };
-                        ui.label(RichText::new(format!("{}: {}", n.from, n.text)).color(c).size(11.5));
-                    }
+                // Latest tip from the team board.
+                if let Some(n) = note.filter(|_| !coach.focus) {
+                    ui.add_space(2.0);
+                    let c = if n.to_me { AMBER } else { MUTED };
+                    ui.label(RichText::new(format!("{}: {}", n.from, n.text)).color(c).size(10.5));
                 }
             });
         });
     }
 }
 
-fn dot(ui: &mut egui::Ui, c: Color32) {
-    let (r, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
-    ui.painter().circle_filled(r.center(), 4.0, c);
+fn small(ui: &mut egui::Ui, text: &str, c: Color32) {
+    ui.label(RichText::new(text).color(c).size(10.0));
+}
+
+fn one_line(ui: &mut egui::Ui, text: RichText) {
+    ui.add(egui::Label::new(text).truncate());
+}
+
+fn dot(ui: &mut egui::Ui, c: Color32, r: f32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(r * 2.0 + 3.0, 12.0), Sense::hover());
+    ui.painter().circle_filled(rect.center(), r, c);
 }
 
 fn status_color(s: Status) -> Color32 {
@@ -455,107 +416,84 @@ fn status_color(s: Status) -> Color32 {
         Status::UnderAttack => RED,
         Status::Low => AMBER,
         Status::Ok => GREEN,
-        Status::Dead => DIM,
-        Status::Stale | Status::InMenu | Status::NoData => DIM,
+        Status::Dead | Status::Stale | Status::InMenu | Status::NoData => DIM,
     }
 }
 
-fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, height: f32) {
-    let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+fn hp_bar(ui: &mut egui::Ui, frac: f32, color: Color32, width: f32) {
+    let (r, _) = ui.allocate_exact_size(Vec2::new(width, 12.0), Sense::hover());
+    let bar = Rect::from_center_size(r.center(), Vec2::new(width, 4.0));
     let p = ui.painter();
-    p.rect_filled(r, CornerRadius::same(2), Color32::from_rgb(30, 33, 40));
-    let mut fill = r;
-    fill.set_width(r.width() * frac.clamp(0.0, 1.0));
+    p.rect_filled(bar, CornerRadius::same(2), Color32::from_rgb(34, 38, 46));
+    let mut fill = bar;
+    fill.set_width(bar.width() * frac.clamp(0.0, 1.0));
     p.rect_filled(fill, CornerRadius::same(2), color);
 }
 
-fn mate_row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool, compact: bool) {
+/// `● Name  [====    ]  R  TP  W2  BKB Blink`
+fn row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
     let status = m.status(now);
     ui.horizontal(|ui| {
-        dot(ui, status_color(status));
-        let name = if is_me { format!("{} (you)", m.name) } else { m.name.clone() };
-        ui.label(RichText::new(name).strong().color(TEXT).size(12.0));
-        if let Some(st) = m.state.as_ref().filter(|s| s.in_match()) {
-            ui.label(RichText::new(format!("{} {}", hero_display(&st.hero), st.level)).color(MUTED).size(11.0));
-        }
-    });
-    let Some(st) = m.state.as_ref() else {
-        ui.label(RichText::new("waiting for game data").color(DIM).size(10.5));
-        return;
-    };
-    if !st.in_match() {
-        ui.label(RichText::new("not in a match").color(DIM).size(10.5));
-        return;
-    }
-    if status == Status::Stale {
-        ui.label(
-            RichText::new(format!("no update for {}s", now.duration_since(m.updated).as_secs())).color(DIM).size(10.5),
-        );
-    }
-    if !st.alive {
-        let bb = if st.buyback_cooldown > 0 {
-            format!("BB cd {}s", st.buyback_cooldown)
-        } else if st.gold >= st.buyback_cost {
-            "BB ready".into()
-        } else {
-            "no BB gold".into()
-        };
-        ui.label(RichText::new(format!("DEAD {}s - {}", st.respawn_seconds, bb)).color(RED).size(11.0));
-    } else {
-        let hp_color = if status == Status::UnderAttack { RED } else if st.hp_frac() < 0.3 { AMBER } else { GREEN };
-        bar(ui, st.hp_frac(), hp_color, 5.0);
-        bar(ui, st.mana_frac(), BLUE, 3.0);
-    }
-    ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 5.0;
-        match st.ultimate() {
-            Some(u) if u.level == 0 => {
-                ui.label(RichText::new("ULT -").color(DIM).size(10.5));
+        dot(ui, status_color(status), 3.5);
+        let name: String = m.name.chars().take(9).collect();
+        let name_color = if status == Status::Dead { DIM } else { TEXT };
+        let mut name_text = RichText::new(name).color(name_color).size(11.0);
+        if is_me {
+            name_text = name_text.strong();
+        }
+        // Fixed-width, left-aligned name column so the bars line up.
+        ui.allocate_ui_with_layout(Vec2::new(56.0, 14.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_min_width(56.0);
+            ui.add(egui::Label::new(name_text).truncate());
+        });
+
+        let Some(st) = m.state.as_ref().filter(|s| s.in_match()) else {
+            small(ui, "waiting", DIM);
+            return;
+        };
+        if status == Status::Stale {
+            small(ui, &format!("no data {}s", now.duration_since(m.updated).as_secs()), DIM);
+            return;
+        }
+        if !st.alive {
+            small(ui, &format!("dead {}s", st.respawn_seconds), RED);
+            let bb_ok = st.buyback_cooldown == 0 && st.gold >= st.buyback_cost;
+            small(ui, "BB", if bb_ok { GREEN } else { DIM });
+            return;
+        }
+        let hp_color = match status {
+            Status::UnderAttack => RED,
+            Status::Low => AMBER,
+            _ => GREEN,
+        };
+        hp_bar(ui, st.hp_frac(), hp_color, 44.0);
+
+        if let Some(u) = st.ultimate().filter(|u| u.level > 0) {
+            if u.cooldown == 0 {
+                ui.label(RichText::new("R").color(GREEN).strong().size(10.5));
+            } else {
+                small(ui, &format!("R{}", u.cooldown), DIM);
             }
-            Some(u) if u.cooldown == 0 => {
-                ui.label(RichText::new("ULT").color(GREEN).strong().size(10.5));
-            }
-            Some(u) => {
-                ui.label(RichText::new(format!("ULT {}", u.cooldown)).color(MUTED).size(10.5));
-            }
-            None => {}
         }
         match st.tp_cooldown() {
-            Some(0) => {
-                ui.label(RichText::new("TP").color(GREEN).size(10.5));
-            }
-            Some(cd) => {
-                ui.label(RichText::new(format!("TP {cd}")).color(MUTED).size(10.5));
-            }
-            None => {
-                ui.label(RichText::new("no TP").color(RED).size(10.5));
-            }
+            Some(0) => small(ui, "TP", GREEN),
+            Some(cd) => small(ui, &format!("TP{cd}"), DIM),
+            None => small(ui, "TP", RED),
         }
-        let (obs, sen) = st.ward_count();
-        if obs + sen > 0 {
-            ui.label(RichText::new(format!("wards {obs}/{sen}")).color(AMBER).size(10.5));
+        let (obs, _) = st.ward_count();
+        if obs > 0 {
+            small(ui, &format!("W{obs}"), AMBER);
         }
-        if st.smoked {
-            ui.label(RichText::new("SMOKED").color(BLUE).size(10.5));
-        }
-        // Compact mode keeps only fight-changing items.
-        for it in st.items.iter().filter(|i| !compact || is_key_item(&i.name)) {
-            let key = is_key_item(&it.name);
-            let mut label = item_short(&it.name);
-            if it.cooldown > 0 {
-                label.push_str(&format!(" {}", it.cooldown));
-            }
-            let color = if key && it.cooldown == 0 {
-                AMBER
-            } else if key {
-                MUTED
+        for it in st.items.iter().filter(|i| is_key_item(&i.name)).take(2) {
+            let label = item_short(&it.name);
+            if it.cooldown == 0 {
+                small(ui, &label, AMBER);
             } else {
-                DIM
-            };
-            ui.label(RichText::new(label).color(color).size(10.0));
+                small(ui, &format!("{label}{}", it.cooldown), DIM);
+            }
         }
     });
-    ui.add_space(3.0);
 }
 
 fn world_to_radar(r: Rect, x: f32, y: f32) -> Pos2 {
@@ -565,23 +503,16 @@ fn world_to_radar(r: Rect, x: f32, y: f32) -> Pos2 {
 }
 
 fn radar(ui: &mut egui::Ui, me: Option<&Mate>, mates: &[Mate], callouts: &[crate::team::CalloutEv], now: Instant) {
-    let size = 150.0;
+    let size = 110.0;
     let (r, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     let p = ui.painter_at(r);
-    p.rect_filled(r, CornerRadius::same(4), Color32::from_rgba_unmultiplied(20, 24, 30, 200));
-    // River and the two bases, for orientation.
-    p.line_segment([r.left_top(), r.right_bottom()], Stroke::new(6.0_f32, Color32::from_rgba_unmultiplied(40, 70, 110, 90)));
-    p.circle_filled(Pos2::new(r.left() + 10.0, r.bottom() - 10.0), 6.0, Color32::from_rgba_unmultiplied(63, 185, 80, 70));
-    p.circle_filled(Pos2::new(r.right() - 10.0, r.top() + 10.0), 6.0, Color32::from_rgba_unmultiplied(248, 81, 73, 70));
-
-    // 0..6 px ring growth on an 800 ms cycle.
-    let pulse = (protocol::now_ms() % 800) as f32 / 800.0 * 6.0;
-
+    p.rect_filled(r, CornerRadius::same(4), Color32::from_rgba_unmultiplied(20, 24, 30, 190));
+    p.line_segment([r.left_top(), r.right_bottom()], Stroke::new(4.0_f32, Color32::from_rgba_unmultiplied(40, 70, 110, 80)));
+    // 0..5 px ring growth on an 800 ms cycle.
+    let pulse = (protocol::now_ms() % 800) as f32 / 800.0 * 5.0;
     for c in callouts {
-        let age = now.duration_since(c.at).as_secs_f32();
-        if age < 8.0 && (c.x != 0.0 || c.y != 0.0) {
-            let pos = world_to_radar(r, c.x, c.y);
-            p.circle_stroke(pos, 6.0 + pulse, Stroke::new(1.5_f32, AMBER));
+        if now.duration_since(c.at).as_secs_f32() < 8.0 && (c.x != 0.0 || c.y != 0.0) {
+            p.circle_stroke(world_to_radar(r, c.x, c.y), 5.0 + pulse, Stroke::new(1.5_f32, AMBER));
         }
     }
     let draw = |m: &Mate, is_me: bool| {
@@ -589,14 +520,12 @@ fn radar(ui: &mut egui::Ui, me: Option<&Mate>, mates: &[Mate], callouts: &[crate
         let pos = world_to_radar(r, st.x, st.y);
         let status = m.status(now);
         if status == Status::UnderAttack {
-            p.circle_stroke(pos, 5.0 + pulse, Stroke::new(2.0_f32, RED));
+            p.circle_stroke(pos, 4.0 + pulse, Stroke::new(1.5_f32, RED));
         }
-        p.circle_filled(pos, 4.0, status_color(status));
+        p.circle_filled(pos, 3.0, status_color(status));
         if is_me {
-            p.circle_stroke(pos, 6.0, Stroke::new(1.5_f32, TEXT));
+            p.circle_stroke(pos, 5.0, Stroke::new(1.0_f32, TEXT));
         }
-        let tag: String = m.name.chars().take(3).collect();
-        p.text(pos + Vec2::new(6.0, -6.0), egui::Align2::LEFT_BOTTOM, tag, egui::FontId::proportional(10.0), TEXT);
     };
     for m in mates {
         draw(m, false);

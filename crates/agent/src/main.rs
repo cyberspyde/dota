@@ -2,7 +2,7 @@
 //!
 //!   Dota 2 --(GSI HTTP, localhost)--> agent --(WebSocket)--> relay --> teammates
 //!
-//! Usage: cyberspyde-agent [--config agent.toml] [--demo] [--headless] [--no-install]
+//! Usage: cyberspyde-agent [--setup] [--config agent.toml] [--demo] [--headless] [--no-install]
 
 mod builds;
 mod coach;
@@ -12,6 +12,7 @@ mod dota;
 mod gsi;
 mod net;
 mod overlay;
+mod setup;
 mod team;
 
 use axum::{body::Bytes, extract::State, http::StatusCode, routing::post, Router};
@@ -29,10 +30,11 @@ struct Args {
     demo: bool,
     headless: bool,
     no_install: bool,
+    setup: bool,
 }
 
 fn parse_args() -> Args {
-    let mut a = Args { config: config::default_path(), demo: false, headless: false, no_install: false };
+    let mut a = Args { config: config::default_path(), demo: false, headless: false, no_install: false, setup: false };
     let mut it = std::env::args().skip(1);
     while let Some(x) = it.next() {
         match x.as_str() {
@@ -40,9 +42,11 @@ fn parse_args() -> Args {
             "--demo" => a.demo = true,
             "--headless" => a.headless = true,
             "--no-install" => a.no_install = true,
+            "--setup" => a.setup = true,
             "-h" | "--help" => {
                 println!(
-                    "cyberspyde-agent [--config agent.toml] [--demo] [--headless] [--no-install]\n\
+                    "cyberspyde-agent [--setup] [--config agent.toml] [--demo] [--headless] [--no-install]\n\
+                     --setup       ask for name, host, key and overlay look again\n\
                      --demo        fake game data, to try the overlay without Dota\n\
                      --headless    no overlay window (just share your data)\n\
                      --no-install  don't write the Dota GSI config file"
@@ -100,18 +104,20 @@ fn main() {
         .init();
     let args = parse_args();
 
-    let (cfg, created) = match config::load_or_create(&args.config) {
+    let (mut cfg, created) = match config::load_or_create(&args.config) {
         Ok(x) => x,
         Err(e) => {
             error!("{e}");
             std::process::exit(1);
         }
     };
-    if created {
-        println!(
-            "\nCreated {}.\nOpen it and set `name`, `relay` and `key` (ask your team host), then restart.\n",
-            args.config.display()
-        );
+    // First launch (or no key yet): ask instead of making people edit a file.
+    if args.setup || (!args.demo && (created || cfg.key.is_empty())) {
+        if setup::run(&mut cfg) {
+            if let Err(e) = config::save(&args.config, &cfg) {
+                error!("{e}");
+            }
+        }
     }
     if cfg.key.is_empty() && !args.demo {
         warn!("no team key set in {}; the relay will reject this agent", args.config.display());

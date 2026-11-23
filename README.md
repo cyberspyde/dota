@@ -13,7 +13,7 @@ A team coordination tool for a 5-stack. Each player shares **their own** game st
 |---|---|
 | ![Overlay](docs/screenshots/overlay.png) | ![Gank alert](docs/screenshots/overlay-gank-alert.png) |
 
-These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. The team board looks like this:
+These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. Each row is one player: status dot (green ok, amber low, red under attack), HP bar, `R` = ultimate (green ready, grey with seconds), `TP`, `W2` = observer wards carried, and up to two fight-changing items. The radar and game-plan tips are off by default. The team board looks like this:
 
 ![Team board](docs/screenshots/team-board.jpg)
 
@@ -23,14 +23,14 @@ The host can switch on coaching aids per player in a private `team.toml` (see `e
 
 | Switch | What the player sees |
 |---|---|
-| `team_mode_banner` | A banner across the top: TEAM IS FIGHTING / RETREATING / GROUPING. It turns red ("TURN AROUND, GO IN" or "STOP - RUN BACK") when the player moves the opposite way from the team |
-| `fight_focus` | During a fight, the build panel, notes and minor items disappear; only alerts and key items stay |
-| `join_fight_nudge` | "Team is fighting 5200 away - TP in now" |
-| `isolation_warning` | "You're alone - nearest ally X is 6100 away" (mid-game, outside base, after 8 s) |
-| `engage_advisor` | "Good fight window: 3 of you close, 3 ults ready - go short and fast", and "Fight is dragging - disengage now" |
-| `low_hp_retreat` | "LOW HP 30% - back off now" while hurt in a fight |
-| `ward_reminders` | "No observer wards on the team" / "Place your observer ward" |
-| `buyback_guard` | Late game: "You spent below buyback gold" |
+| `team_mode_banner` | A banner across the top: TEAM FIGHTING / TEAM RETREATING / GROUP UP. It turns red ("TURN AROUND - GO IN" or "STOP - RUN BACK") when the player moves the opposite way from the team |
+| `fight_focus` | During a fight, the build line, radar and notes disappear |
+| `join_fight_nudge` | "Fight 5.2k away - TP in" |
+| `isolation_warning` | "You're alone - X 6.1k" (mid-game, outside base, after 8 s) |
+| `engage_advisor` | "Fight window: 3 close, 3 ults - go fast", and "Fight dragging - disengage" |
+| `low_hp_retreat` | "LOW HP - back off" while hurt in a fight |
+| `ward_reminders` | "No observers on team - buy" / "Place your observer" |
+| `buyback_guard` | Late game: "Below buyback gold (800/1200)" |
 
 How the team's state is read: allies taking burst damage with another ally within 2500 = a team fight; a retreat callout or 2+ dead = retreating; a group-up callout = grouping. Movement is measured over the last 1.5 s. Everything is computed on each player's own PC from the shared state, so it adds no delay.
 
@@ -100,11 +100,17 @@ Open TCP port 4747 on that machine (and forward it on the router, if it's at hom
 
 ### Every player: the agent
 
-1. Run `cyberspyde-agent.exe` once. It creates `agent.toml` next to itself.
-2. Edit `agent.toml`: set `name`, `relay = "ws://<host>:4747/ws"` and `key`.
-3. Run it again. It finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.
-4. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
-5. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
+1. Run `cyberspyde-agent.exe`. The first time, it asks a few questions in its console window:
+   - your name (as the team knows you)
+   - the host's address (just the IP or domain)
+   - the team key
+   - overlay size (small / normal / large) and side (left / right)
+   - whether to show next-item help and the mini radar
+
+   Answers are saved in `agent.toml` next to the program. To change them later, run `cyberspyde-agent.exe --setup`.
+2. The agent finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.
+3. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
+4. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
 
 Try it without Dota: `cyberspyde-agent.exe --demo` (four fake teammates; one keeps getting ganked).
 

@@ -2,7 +2,7 @@
 //! with only the aids the host switched on for this player. Nothing here
 //! says *why* an aid is on; players just see clear, timely prompts.
 
-use crate::team::{Alert, CalloutEv, Severity, Status, Team};
+use crate::team::{km, Alert, CalloutEv, Severity, Status, Team};
 use protocol::{CalloutKind, Feature};
 use std::time::{Duration, Instant};
 
@@ -138,9 +138,9 @@ impl Coach {
                 TeamMode::Fighting { x, y } => {
                     let against = my_pos.is_some_and(|p| near_fight && my_hp > 0.5 && heading(my_move, p, (x, y)) < 0);
                     out.banner = Some(if against {
-                        ("TEAM IS FIGHTING - TURN AROUND, GO IN".into(), Severity::Danger)
+                        ("TURN AROUND - GO IN".into(), Severity::Danger)
                     } else {
-                        ("TEAM IS FIGHTING".into(), Severity::Warn)
+                        ("TEAM FIGHTING".into(), Severity::Warn)
                     });
                 }
                 TeamMode::Retreating => {
@@ -149,15 +149,15 @@ impl Coach {
                         _ => false,
                     };
                     out.banner = Some(if toward {
-                        ("STOP - TEAM IS RETREATING, RUN BACK".into(), Severity::Danger)
+                        ("STOP - RUN BACK".into(), Severity::Danger)
                     } else {
-                        ("TEAM IS RETREATING - BACK OFF".into(), Severity::Warn)
+                        ("TEAM RETREATING".into(), Severity::Warn)
                     });
                 }
                 TeamMode::Grouping { x, y } => {
                     let d = my_pos.map(|p| dist(p, (x, y))).unwrap_or(0.0);
                     if d > 1500.0 {
-                        out.banner = Some((format!("TEAM IS GROUPING - go, {d:.0} away"), Severity::Warn));
+                        out.banner = Some((format!("GROUP UP - {}", km(d)), Severity::Warn));
                     }
                 }
                 TeamMode::Calm => {}
@@ -168,11 +168,11 @@ impl Coach {
         if c.has(Feature::JoinFightNudge) && me.alive {
             if let Some(d) = fight_dist.filter(|d| *d > NEAR_FIGHT) {
                 let how = match me.tp_cooldown() {
-                    Some(0) => "TP in now",
-                    Some(_) => "walk in now, TP on cooldown",
-                    None => "walk in now, buy a TP",
+                    Some(0) => "TP in",
+                    Some(_) => "walk in",
+                    None => "walk in, buy a TP",
                 };
-                out.alerts.push(Alert { severity: Severity::Danger, text: format!("Team is fighting {d:.0} away - {how}") });
+                out.alerts.push(Alert { severity: Severity::Danger, text: format!("Fight {} away - {how}", km(d)) });
             }
         }
 
@@ -192,7 +192,7 @@ impl Coach {
                             if c.has(Feature::IsolationWarning) && now.duration_since(since) >= ISOLATION_AFTER {
                                 out.alerts.push(Alert {
                                     severity: Severity::Warn,
-                                    text: format!("You're alone - nearest ally {name} is {d:.0} away"),
+                                    text: format!("You're alone - {name} {}", km(d)),
                                 });
                             }
                             true
@@ -218,19 +218,19 @@ impl Coach {
                 if close.len() >= 2 && ults >= 2 && my_hp > 0.6 {
                     out.alerts.push(Alert {
                         severity: Severity::Good,
-                        text: format!("Good fight window: {} of you close, {} ults ready - go short and fast", close.len() + 1, ults),
+                        text: format!("Fight window: {} close, {} ults - go fast", close.len() + 1, ults),
                     });
                 }
             }
             if let Some(since) = self.fight_since {
                 if near_fight && now.duration_since(since) >= FIGHT_DRAGGING && my_hp < 0.45 {
-                    out.alerts.push(Alert { severity: Severity::Danger, text: "Fight is dragging - disengage now".into() });
+                    out.alerts.push(Alert { severity: Severity::Danger, text: "Fight dragging - disengage".into() });
                 }
             }
         }
 
         if c.has(Feature::LowHpRetreat) && me.alive && my_hp < 0.35 && (me_hit || near_fight) {
-            out.alerts.push(Alert { severity: Severity::Danger, text: format!("LOW HP {:.0}% - back off now", my_hp * 100.0) });
+            out.alerts.push(Alert { severity: Severity::Danger, text: "LOW HP - back off".into() });
         }
 
         // Wards.
@@ -245,7 +245,7 @@ impl Coach {
         if me.clock >= 180 && team_obs == 0 {
             let since = *self.no_obs_since.get_or_insert(now);
             if c.has(Feature::WardReminders) && now.duration_since(since) >= NO_WARDS_AFTER {
-                out.alerts.push(Alert { severity: Severity::Warn, text: "No observer wards on the team - buy some".into() });
+                out.alerts.push(Alert { severity: Severity::Warn, text: "No observers on team - buy".into() });
             }
         } else {
             self.no_obs_since = None;
@@ -257,7 +257,7 @@ impl Coach {
         }
         if let Some((_, since)) = self.obs_held {
             if c.has(Feature::WardReminders) && me.alive && now.duration_since(since) >= HOLDING_WARD_AFTER {
-                out.alerts.push(Alert { severity: Severity::Warn, text: "Place your observer ward".into() });
+                out.alerts.push(Alert { severity: Severity::Warn, text: "Place your observer".into() });
             }
         }
 
@@ -272,7 +272,7 @@ impl Coach {
             if c.has(Feature::BuybackGuard) && now.duration_since(at) < BUYBACK_WARN_FOR {
                 out.alerts.push(Alert {
                     severity: Severity::Warn,
-                    text: format!("You spent below buyback gold ({}/{})", me.gold, me.buyback_cost),
+                    text: format!("Below buyback gold ({}/{})", me.gold, me.buyback_cost),
                 });
             }
         }
@@ -367,7 +367,7 @@ mod tests {
         put(&mut t, 0, st(1400.0, 0.0, 1000), t2); // walking toward the old fight
         let (text, sev) = coach.evaluate(&t, t2).banner.expect("banner");
         assert_eq!(sev, Severity::Danger);
-        assert!(text.contains("RETREATING"), "{text}");
+        assert!(text.contains("RUN BACK"), "{text}");
     }
 
     #[test]
@@ -401,7 +401,7 @@ mod tests {
             t
         };
         let out = Coach::default().evaluate(&setup(&[Feature::EngageAdvisor]), t0);
-        assert!(out.alerts.iter().any(|a| a.severity == Severity::Good && a.text.contains("3 of you")));
+        assert!(out.alerts.iter().any(|a| a.severity == Severity::Good && a.text.contains("3 close")));
         let out = Coach::default().evaluate(&setup(&[]), t0);
         assert!(out.alerts.is_empty(), "nothing without the switch");
     }

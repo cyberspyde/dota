@@ -37,6 +37,8 @@ pub struct OverlayConfig {
     pub opacity: f32,
     pub show_radar: bool,
     pub show_build: bool,
+    /// Game-plan text and rotating tips under the next item (more reading).
+    pub show_tips: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -74,12 +76,13 @@ impl Default for OverlayConfig {
     fn default() -> Self {
         OverlayConfig {
             enabled: true,
-            x: 16.0,
-            y: 200.0,
+            x: 12.0,
+            y: 160.0,
             scale: 1.0,
-            opacity: 0.72,
-            show_radar: true,
+            opacity: 0.62,
+            show_radar: false,
             show_build: true,
+            show_tips: false,
         }
     }
 }
@@ -136,9 +139,7 @@ pub fn save(path: &Path, cfg: &Config) -> Result<(), String> {
     let body = toml::to_string_pretty(cfg).map_err(|e| e.to_string())?;
     let text = format!(
         "# cyberspyde-agent settings. Restart the agent after editing.\n\
-         # name  = what teammates see\n\
-         # relay = ws://<host-ip>:4747/ws from the team host\n\
-         # key   = the team key the host gave you\n\
+         # Easiest way to change name, host, key and look: run the agent with --setup\n\
          # Hotkey names: Numpad0-9, F1-F12, KeyA, Digit1, with modifiers like \"ctrl+shift+KeyH\".\n\n{body}"
     );
     std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))

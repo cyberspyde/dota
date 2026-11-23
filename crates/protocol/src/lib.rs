@@ -160,7 +160,7 @@ impl CalloutKind {
             CalloutKind::Help => "NEEDS HELP",
             CalloutKind::Group => "GROUP UP",
             CalloutKind::Retreat => "RETREAT",
-            CalloutKind::Careful => "CAREFUL - MISSING",
+            CalloutKind::Careful => "CAREFUL",
             CalloutKind::OnMyWay => "ON MY WAY",
             CalloutKind::Roshan => "ROSHAN",
         }
