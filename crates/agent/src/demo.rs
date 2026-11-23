@@ -1,6 +1,6 @@
 //! `--demo`: fake game data so the overlay can be tried without Dota.
 //! Generates my own state (which is also sent to the relay, if connected) and
-//! four local-only fake teammates, one of whom keeps getting ganked.
+//! four local-only teammates (the real team), one of whom keeps getting ganked.
 
 use crate::team::{Notifier, SharedTeam};
 use protocol::{Ability, CalloutKind, Item, PlayerState, ServerMsg};
@@ -38,12 +38,14 @@ fn hero(name: &str, level: u32, x: f32, y: f32, items: &[&str]) -> PlayerState {
 pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sender<Option<PlayerState>>) {
     let mut me = hero("abaddon", 9, -2500.0, -1800.0, &["phase_boots", "magic_wand", "ward_observer"]);
     me.items[2].charges = Some(2);
+    // The real team (you are the player running the demo).
     let mut mates = vec![
-        (1001, "Pro", hero("juggernaut", 13, -5200.0, -3600.0, &["phase_boots", "bfury", "black_king_bar"])),
-        (1002, "Aziz", hero("crystal_maiden", 8, 1800.0, 600.0, &["tranquil_boots", "glimmer_cape", "ward_sentry"])),
-        (1003, "Bek", hero("axe", 11, 3100.0, 2900.0, &["blink", "vanguard", "blade_mail"])),
-        (1004, "Sardor", hero("lina", 12, -300.0, 200.0, &["arcane_boots", "cyclone"])),
+        (1001, "Azamatjon", hero("juggernaut", 13, -5200.0, -3600.0, &["phase_boots", "bfury", "black_king_bar"])),
+        (1002, "Azizbek", hero("lich", 8, 1800.0, 600.0, &["tranquil_boots", "glimmer_cape", "ward_observer", "ward_sentry"])),
+        (1003, "Azimjon", hero("faceless_void", 11, 3100.0, 2900.0, &["power_treads", "maelstrom", "black_king_bar"])),
+        (1004, "Otabek", hero("lina", 12, -300.0, 200.0, &["arcane_boots", "cyclone"])),
     ];
+    mates[1].2.items[2].charges = Some(2);
     {
         let mut t = team.lock().unwrap();
         for (id, name, _) in &mates {
@@ -57,9 +59,9 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
     loop {
         tick.tick().await;
         n += 1;
-        // 20 s script: 0-3 s Bek is ganked alone; 6-10 s Pro and Sardor
+        // 20 s script: 0-3 s Azimjon is ganked alone; 6-10 s Azamatjon and Otabek
         // join me with ults up (a good fight window); 10-14 s we fight and I
-        // get low; 14 s Pro calls retreat; then everyone recovers.
+        // get low; 14 s Azamatjon calls retreat; then everyone recovers.
         let cycle = n % 200;
         let clock = (n / 10) as i32 + 600;
         me.clock = clock;
@@ -93,41 +95,41 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
             }
         }
         {
-            let sardor = &mut mates[3].2;
+            let otabek = &mut mates[3].2;
             if (100..140).contains(&cycle) {
-                sardor.health = sardor.health.saturating_sub(18).max(300);
+                otabek.health = otabek.health.saturating_sub(18).max(300);
             } else {
-                sardor.health = (sardor.health + 8).min(sardor.max_health);
+                otabek.health = (otabek.health + 8).min(otabek.max_health);
             }
         }
         if cycle == 140 {
             team.lock().unwrap().apply(ServerMsg::Callout { id: 1001, server_ms: 0, kind: CalloutKind::Retreat, x: me.x, y: me.y });
         }
 
-        // Bek gets jumped every 20 s: 3 s of burst damage, dies on every other cycle.
-        let bek = &mut mates[2].2;
-        bek.clock = clock;
+        // Azimjon gets jumped every 20 s: 3 s of burst damage, dies on every other cycle.
+        let azimjon = &mut mates[2].2;
+        azimjon.clock = clock;
         if cycle < 30 {
-            if bek.alive {
-                bek.health = bek.health.saturating_sub(if (n / 200) % 2 == 0 { 25 } else { 60 });
-                if bek.health == 0 {
-                    bek.alive = false;
-                    bek.respawn_seconds = 25;
+            if azimjon.alive {
+                azimjon.health = azimjon.health.saturating_sub(if (n / 200) % 2 == 0 { 25 } else { 60 });
+                if azimjon.health == 0 {
+                    azimjon.alive = false;
+                    azimjon.respawn_seconds = 25;
                 }
             }
-        } else if !bek.alive {
+        } else if !azimjon.alive {
             if n % 10 == 0 {
-                bek.respawn_seconds = bek.respawn_seconds.saturating_sub(1);
+                azimjon.respawn_seconds = azimjon.respawn_seconds.saturating_sub(1);
             }
-            if bek.respawn_seconds == 0 {
-                bek.alive = true;
-                bek.health = bek.max_health;
+            if azimjon.respawn_seconds == 0 {
+                azimjon.alive = true;
+                azimjon.health = azimjon.max_health;
             }
         } else {
-            bek.health = (bek.health + 4).min(bek.max_health);
+            azimjon.health = (azimjon.health + 4).min(azimjon.max_health);
         }
         if cycle == 5 {
-            team.lock().unwrap().apply(ServerMsg::Callout { id: 1003, server_ms: 0, kind: CalloutKind::Help, x: bek.x, y: bek.y });
+            team.lock().unwrap().apply(ServerMsg::Callout { id: 1003, server_ms: 0, kind: CalloutKind::Help, x: azimjon.x, y: azimjon.y });
         }
         if cycle == 120 {
             team.lock().unwrap().apply(ServerMsg::Note {

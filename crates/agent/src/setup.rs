@@ -6,7 +6,7 @@ use crate::config::Config;
 use std::io::{self, BufRead, Write};
 
 /// Overlay width in logical pixels at scale 1.0 (keep in sync with overlay.rs).
-pub const OVERLAY_W: f32 = 232.0;
+pub const OVERLAY_W: f32 = 244.0;
 
 /// "203.0.113.10" -> "ws://203.0.113.10:4747/ws"; full ws:// URLs pass through.
 pub fn relay_url(input: &str) -> String {

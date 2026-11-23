@@ -443,8 +443,8 @@ fn row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
             name_text = name_text.strong();
         }
         // Fixed-width, left-aligned name column so the bars line up.
-        ui.allocate_ui_with_layout(Vec2::new(56.0, 14.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.set_min_width(56.0);
+        ui.allocate_ui_with_layout(Vec2::new(66.0, 14.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_min_width(66.0);
             ui.add(egui::Label::new(name_text).truncate());
         });
 
@@ -467,7 +467,7 @@ fn row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
             Status::Low => AMBER,
             _ => GREEN,
         };
-        hp_bar(ui, st.hp_frac(), hp_color, 44.0);
+        hp_bar(ui, st.hp_frac(), hp_color, 40.0);
 
         if let Some(u) = st.ultimate().filter(|u| u.level > 0) {
             if u.cooldown == 0 {

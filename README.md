@@ -112,7 +112,7 @@ Open TCP port 4747 on that machine (and forward it on the router, if it's at hom
 3. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
 4. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
 
-Try it without Dota: `cyberspyde-agent.exe --demo` (four fake teammates; one keeps getting ganked).
+Try it without Dota: `cyberspyde-agent.exe --demo` (your four teammates with fake game data; one keeps getting ganked).
 
 ### Hotkeys (change them in `agent.toml`)
 
