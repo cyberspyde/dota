@@ -471,14 +471,14 @@ fn row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
 
         if let Some(u) = st.ultimate().filter(|u| u.level > 0) {
             if u.cooldown == 0 {
-                ui.label(RichText::new("R").color(GREEN).strong().size(10.5));
+                ui.label(RichText::new("ULT").color(GREEN).strong().size(10.5));
             } else {
-                small(ui, &format!("R{}", u.cooldown), DIM);
+                small(ui, &format!("ULT {}", u.cooldown), DIM);
             }
         }
         match st.tp_cooldown() {
             Some(0) => small(ui, "TP", GREEN),
-            Some(cd) => small(ui, &format!("TP{cd}"), DIM),
+            Some(cd) => small(ui, &format!("TP {cd}"), DIM),
             None => small(ui, "TP", RED),
         }
         let (obs, _) = st.ward_count();

@@ -9,11 +9,11 @@ A team coordination tool for a 5-stack. Each player shares **their own** game st
 - **A build helper for your hero**: next item and gold still needed, skill-order reminders, game-plan tips. It comes from the old CYBERSPYDE build database, plus builds your pro friend writes **once** instead of explaining them every game.
 - **A team board** web page (for a second monitor or a phone) where anyone can send tips to one player or the whole team.
 
-| Normal | A teammate getting ganked |
+| In a fight (your ult on cooldown) | A teammate getting ganked |
 |---|---|
 | ![Overlay](docs/screenshots/overlay.png) | ![Gank alert](docs/screenshots/overlay-gank-alert.png) |
 
-These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. Each row is one player: status dot (green ok, amber low, red under attack), HP bar, `R` = ultimate (green ready, grey with seconds), `TP`, `W2` = observer wards carried, and up to two fight-changing items. The radar and game-plan tips are off by default. The team board looks like this:
+These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. Each row is one player: status dot (green ok, amber low, red under attack), HP bar, `ULT` = ultimate (green ready, grey with seconds left, hidden before level 6), `TP` (green ready, grey cooldown, red none), `W2` = observer wards carried, and up to two fight-changing items. The radar and game-plan tips are off by default. The team board looks like this:
 
 ![Team board](docs/screenshots/team-board.jpg)
 
