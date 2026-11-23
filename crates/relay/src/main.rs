@@ -56,10 +56,16 @@ fn parse_args() -> Result<Config, String> {
                     .map_err(|e| format!("bad --bind: {e}"))?
             }
             "--key" => key = args.next().ok_or("--key needs a value")?,
+            // Preferred for services: the key stays in an ACL-protected file,
+            // not in the command line or environment other accounts can read.
+            "--key-file" => {
+                let p = args.next().ok_or("--key-file needs a path")?;
+                key = std::fs::read_to_string(&p).map_err(|e| format!("read {p}: {e}"))?.trim().to_string();
+            }
             "--team" => team = Some(PathBuf::from(args.next().ok_or("--team needs a path")?)),
             "-h" | "--help" => {
                 println!(
-                    "cyberspyde-relay [--bind 0.0.0.0:4747] --key <team-key> [--team team.toml]\n\
+                    "cyberspyde-relay [--bind 0.0.0.0:4747] (--key <team-key> | --key-file <path>) [--team team.toml]\n\
                      --team: private per-player coaching profiles, re-read on each connect.\n\
                      The key can also come from the RELAY_KEY environment variable.\n\
                      Dashboard: http://<host>:<port>/#key=<team-key>"
@@ -85,6 +91,8 @@ async fn main() {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "info".into()),
         )
+        // Plain text when running as a service with output going to a log file.
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
         .init();
 
     let cfg = match parse_args() {

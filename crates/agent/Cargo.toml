@@ -13,7 +13,9 @@ protocol.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-tokio-tungstenite.workspace = true
+# wss:// for the public relay; ring as the crypto backend (builds with MinGW, no cmake/nasm).
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
 futures-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -8,15 +8,24 @@ use std::io::{self, BufRead, Write};
 /// Overlay width in logical pixels at scale 1.0 (keep in sync with overlay.rs).
 pub const OVERLAY_W: f32 = 244.0;
 
-/// "203.0.113.10" -> "ws://203.0.113.10:4747/ws"; full ws:// URLs pass through.
+/// What people type -> relay URL.
+/// - a domain ("dota.cyberspyde.uz") -> wss://domain/ws (public, TLS edge)
+/// - an IP, localhost or host:port -> ws://host:4747/ws (LAN or test relay)
+/// - full ws:// or wss:// URLs pass through.
 pub fn relay_url(input: &str) -> String {
     let s = input.trim().trim_end_matches('/');
     if s.starts_with("ws://") || s.starts_with("wss://") {
         return s.to_string();
     }
     let host = s.strip_prefix("http://").or_else(|| s.strip_prefix("https://")).unwrap_or(s);
-    let host_port = if host.contains(':') { host.to_string() } else { format!("{host}:4747") };
-    format!("ws://{host_port}/ws")
+    let is_ip = host.parse::<std::net::IpAddr>().is_ok();
+    if host.contains(':') {
+        format!("ws://{host}/ws")
+    } else if is_ip || host == "localhost" {
+        format!("ws://{host}:4747/ws")
+    } else {
+        format!("wss://{host}/ws")
+    }
 }
 
 /// Host part of a relay URL, for showing as the default answer.
@@ -95,7 +104,7 @@ pub fn run(cfg: &mut Config) -> bool {
     };
     cfg.name = name.trim().chars().take(24).collect();
 
-    let host = ask("Team host address (IP or domain from the host)", &relay_host(&cfg.relay));
+    let host = ask("Team host (press Enter for the team server)", &relay_host(&cfg.relay));
     if !host.trim().is_empty() {
         cfg.relay = relay_url(&host);
     }
@@ -147,5 +156,8 @@ mod tests {
         assert_eq!(relay_url("wss://relay.example.com/ws"), "wss://relay.example.com/ws");
         assert_eq!(relay_host("ws://203.0.113.10:4747/ws"), "203.0.113.10");
         assert_eq!(relay_host("ws://h:9000/ws"), "h:9000");
+        assert_eq!(relay_url("dota.cyberspyde.uz"), "wss://dota.cyberspyde.uz/ws");
+        assert_eq!(relay_url("localhost"), "ws://localhost:4747/ws");
+        assert_eq!(relay_host("wss://dota.cyberspyde.uz/ws"), "dota.cyberspyde.uz");
     }
 }

@@ -5,6 +5,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// The team's relay on SERVER01, behind the public edge (TLS).
+pub const DEFAULT_RELAY: &str = "wss://dota.cyberspyde.uz/ws";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Config {
@@ -60,7 +63,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             name: std::env::var("USERNAME").unwrap_or_else(|_| "player".into()),
-            relay: "ws://127.0.0.1:4747/ws".into(),
+            relay: DEFAULT_RELAY.into(),
             key: String::new(),
             gsi_port: 4646,
             gsi_token: random_token(),
