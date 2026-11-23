@@ -1,4 +1,8 @@
+# The web helper lives in legacy-helper/ since the repo became the team tool.
+# This keeps the existing Netlify site building from that folder.
+# Paths below (publish, functions) are relative to `base`.
 [build]
+  base = "legacy-helper"
   command = "npm run build"
   publish = "dist"
 
@@ -10,7 +14,6 @@
   to = "/.netlify/functions/api/:splat"
   status = 200
 
-# Fallback for SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -18,22 +21,3 @@
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-[dev]
-  autoLaunch = true
-  framework = "vite"
-  # Disable automatic installation of extensions
-  autoInstall = false
-  node_bundler = "esbuild"
-  
-# Environment variables will be set in Netlify dashboard
-
-# -------------------------------------------------------------------
-# Scheduled Functions
-# Daily keepalive ping so Supabase project never idles (runs 06:00 UTC)
-# Adjust cron as needed (cron format: min hour day month weekday)
-# -------------------------------------------------------------------
-[[scheduled.functions]]
-  name = "keepalive"
-  cron = "0 6 * * *"

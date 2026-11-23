@@ -1,0 +1,114 @@
+//! `--demo`: fake game data so the overlay can be tried without Dota.
+//! Generates my own state (which is also sent to the relay, if connected) and
+//! four local-only fake teammates, one of whom keeps getting ganked.
+
+use crate::team::{Notifier, SharedTeam};
+use protocol::{Ability, CalloutKind, Item, PlayerState, ServerMsg};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::watch;
+
+fn hero(name: &str, level: u32, x: f32, y: f32, items: &[&str]) -> PlayerState {
+    PlayerState {
+        hero: name.into(),
+        level,
+        alive: true,
+        health: 1400,
+        max_health: 1400,
+        mana: 600,
+        max_mana: 800,
+        gold: 1200,
+        buyback_cost: 900,
+        has_pos: true,
+        x,
+        y,
+        items: items.iter().map(|n| Item { name: (*n).into(), charges: None, cooldown: 0 }).collect(),
+        tp: Some(Item { name: "tpscroll".into(), charges: Some(1), cooldown: 0 }),
+        abilities: vec![
+            Ability { name: "q".into(), level: 3, can_cast: true, ..Default::default() },
+            Ability { name: "w".into(), level: 2, can_cast: true, ..Default::default() },
+            Ability { name: "e".into(), level: 2, ..Default::default() },
+            Ability { name: "r".into(), level: if level >= 6 { 1 } else { 0 }, ultimate: true, ..Default::default() },
+        ],
+        game_state: "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS".into(),
+        team: "radiant".into(),
+        ..Default::default()
+    }
+}
+
+pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sender<Option<PlayerState>>) {
+    let mut me = hero("abaddon", 9, -2500.0, -1800.0, &["phase_boots", "magic_wand", "ward_observer"]);
+    me.items[2].charges = Some(2);
+    let mut mates = vec![
+        (1001, "Pro", hero("juggernaut", 13, -5200.0, -3600.0, &["phase_boots", "bfury", "black_king_bar"])),
+        (1002, "Aziz", hero("crystal_maiden", 8, 1800.0, 600.0, &["tranquil_boots", "glimmer_cape", "ward_sentry"])),
+        (1003, "Bek", hero("axe", 11, 3100.0, 2900.0, &["blink", "vanguard", "blade_mail"])),
+        (1004, "Sardor", hero("lina", 12, -300.0, 200.0, &["arcane_boots", "cyclone"])),
+    ];
+    {
+        let mut t = team.lock().unwrap();
+        for (id, name, _) in &mates {
+            t.mates.insert(*id, crate::team::Mate::new(*id, (*name).into()));
+        }
+    }
+
+    let mut tick = tokio::time::interval(Duration::from_millis(100));
+    let mut n: u64 = 0;
+    loop {
+        tick.tick().await;
+        n += 1;
+        let clock = (n / 10) as i32 + 600;
+        me.clock = clock;
+        me.gold = 900 + (n % 200) as u32 * 10;
+        me.x += ((n as f32) / 30.0).sin() * 15.0;
+        me.y += ((n as f32) / 25.0).cos() * 15.0;
+        if let Some(r) = me.abilities.last_mut() {
+            r.cooldown = (40 - (n / 10) % 41) as u32;
+        }
+        state_tx.send_replace(Some(me.clone()));
+        team.lock().unwrap().set_my_state(me.clone());
+
+        // Bek gets jumped every 20 s: 3 s of burst damage, dies on every other cycle.
+        let cycle = n % 200;
+        let bek = &mut mates[2].2;
+        bek.clock = clock;
+        if cycle < 30 {
+            if bek.alive {
+                bek.health = bek.health.saturating_sub(if (n / 200) % 2 == 0 { 25 } else { 60 });
+                if bek.health == 0 {
+                    bek.alive = false;
+                    bek.respawn_seconds = 25;
+                }
+            }
+        } else if !bek.alive {
+            if n % 10 == 0 {
+                bek.respawn_seconds = bek.respawn_seconds.saturating_sub(1);
+            }
+            if bek.respawn_seconds == 0 {
+                bek.alive = true;
+                bek.health = bek.max_health;
+            }
+        } else {
+            bek.health = (bek.health + 4).min(bek.max_health);
+        }
+        if cycle == 5 {
+            team.lock().unwrap().apply(ServerMsg::Callout { id: 1003, server_ms: 0, kind: CalloutKind::Help, x: bek.x, y: bek.y });
+        }
+        if cycle == 120 {
+            team.lock().unwrap().apply(ServerMsg::Note {
+                id: 1001,
+                server_ms: 0,
+                to: None,
+                text: "Group mid after my BKB, smoke at 14:00".into(),
+            });
+        }
+        for (id, _, st) in mates.iter_mut() {
+            st.clock = clock;
+            if *id != 1003 {
+                st.x += ((n as f32 + *id as f32) / 20.0).sin() * 12.0;
+                st.y += ((n as f32 + *id as f32) / 23.0).cos() * 12.0;
+            }
+            team.lock().unwrap().apply(ServerMsg::State { id: *id, server_ms: 0, state: st.clone() });
+        }
+        notify.poke();
+    }
+}

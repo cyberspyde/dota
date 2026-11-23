@@ -1,349 +1,111 @@
-# 🎮 CYBERSPYDE Plays Dota - Dota 2 Helper
+# cyberspyde dota 2
 
-A comprehensive Dota 2 hero recommendation and build guide application with mood-based hero selection, detailed build guides, and multi-language support.
+A team coordination tool for a 5-stack. Each player shares **their own** game state with the rest of the team in real time. Everyone gets an in-game overlay showing:
 
-## ✨ Features
+- **Who is under attack, right now.** It flags burst damage (12%+ HP lost within 2.5 s) and shows your distance to that teammate and whether your TP is ready.
+- **Teammate status**: HP and mana, dead or alive with respawn time and buyback status, ultimate and TP cooldowns, key items (BKB, Blink, Glimmer and so on, with cooldowns), and ward stock.
+- **A radar** showing where everyone is, with a pulsing ring on anyone taking damage.
+- **Callouts on hotkeys**: help, group up, retreat, careful, on my way, Roshan.
+- **A build helper for your hero**: next item and gold still needed, skill-order reminders, game-plan tips. It comes from the old CYBERSPYDE build database, plus builds your pro friend writes **once** instead of explaining them every game.
+- **A team board** web page (for a second monitor or a phone) where anyone can send tips to one player or the whole team.
 
-- **🎯 Mood-Based Hero Selection**: Choose your gaming mood and get personalized hero recommendations
-- **📚 Detailed Build Guides**: Complete item builds, playstyle tips, and game phase strategies
-- **🔍 Advanced Hero Search**: Filter heroes by role, difficulty, and availability of build guides
-- **🌍 Multi-Language Support**: Available in English, Russian, and Uzbek
-- **🌙 Dark/Light Theme**: Toggle between dark and light modes
-- **📱 Responsive Design**: Optimized for desktop, tablet, and mobile devices
-- **🗄️ Supabase Backend**: Modern PostgreSQL database with real-time capabilities
+## Fair play
 
-## 🚀 Tech Stack
+The tool uses only Valve's official **Game State Integration (GSI)**. In player mode, Dota sends each player only their own hero, items and abilities. Sharing that with your own team is the same as reading it out on voice chat, just faster and without the shouting. It never reads game memory or injects anything, and it shows **nothing about enemies**. Spectator/observer feeds are explicitly ignored (`gsi.rs`).
 
-### Frontend
-- **React 18** with TypeScript
-- **Tailwind CSS** for styling
-- **Lucide React** for icons
-- **Vite** for development and building
-
-### Backend
-- **Netlify Functions** with TypeScript
-- **Supabase** for PostgreSQL database and authentication
-- **Row Level Security** for data protection
-- **CORS** enabled for cross-origin requests
-
-## 📋 Prerequisites
-
-Before you begin, ensure you have the following:
-
-- **Node.js** (version 18 or higher)
-- **npm** (comes with Node.js)
-- **Supabase account** (free tier available)
-- **Netlify account** (free tier available)
-
-## 🛠️ Local Development Setup
-
-### 1. Clone the Repository
-
-```bash
-git clone <your-repository-url>
-cd dota-helper
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install
-```
-
-### 3. Supabase Setup
-
-#### Create Supabase Project
-
-1. **Go to [supabase.com](https://supabase.com)** and create a free account
-2. **Create a new project**
-3. **Wait for the project to be fully set up** (this may take a few minutes)
-4. **Get your project credentials**:
-   - Go to **Settings** → **API**
-   - Copy your **Project URL** and **anon public key**
-   - Copy your **service_role key** (keep this secret!)
-
-#### Configure Environment Variables
-
-1. **Copy the environment template**:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit `.env` file** with your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key-here
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
-   ```
-
-### 4. Database Setup
-
-#### Run Database Migration
-
-1. **Go to your Supabase project dashboard**
-2. **Navigate to SQL Editor**
-3. **Copy and paste the content** from `supabase/migrations/01_create_dota_schema.sql`
-4. **Click "Run"** to create all tables and security policies
-
-#### Populate Database with Sample Data
-
-```bash
-npm run db:populate
-```
-
-You should see output like:
-```
-🚀 Populating heroes...
-✅ Inserted 150+ heroes
-🚀 Populating builds...
-✅ Inserted 50+ builds
-🎉 Database population completed successfully!
-```
-
-### 5. Start the Application
-
-```bash
-npm run dev
-```
-
-The application will start on `http://localhost:8888` (Netlify Dev server)
-
-> **Note**: We use `netlify dev` instead of `vite` to ensure both the frontend and Netlify Functions are served locally. This allows the API endpoints (`/api/heroes`, `/api/builds`) to work correctly during development.
-
-If you need to run only the Vite frontend server (without API functionality), you can use:
-```bash
-npm run dev:vite
-```
-
-## 🚀 Production Deployment
-
-### Deploy to Netlify
-
-1. **Connect your repository**:
-   - Go to [netlify.com](https://netlify.com)
-   - Click "New site from Git"
-   - Connect your repository
-
-2. **Configure build settings**:
-   - **Build command**: `npm run build`
-   - **Publish directory**: `dist`
-   - **Functions directory**: `netlify/functions`
-
-3. **Set environment variables**:
-   - Go to **Site settings** → **Environment variables**
-   - Add your Supabase credentials:
-     - `VITE_SUPABASE_URL`
-     - `VITE_SUPABASE_ANON_KEY`
-     - `SUPABASE_SERVICE_ROLE_KEY`
-
-4. **Deploy**:
-   - Click "Deploy site"
-   - Your app will be live at `https://your-site-name.netlify.app`
-
-### Environment Variables for Production
-
-Ensure these are set in Netlify:
-- `VITE_SUPABASE_URL`: Your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
-
-### ⏰ Keeping Supabase Awake (Scheduled Keepalive)
-
-Free Supabase projects can pause after a period of inactivity (leading to a slow first request). This repo includes a Netlify Scheduled Function (`keepalive`) that runs daily (06:00 UTC) and performs a minimal read query against the database so it stays active.
-
-How it works:
-- Function file: `netlify/functions/keepalive.ts`
-- Schedule defined in `netlify.toml` under `[[scheduled.functions]]`
-- Executes a single lightweight `SELECT id FROM heroes LIMIT 1`
-
-To adjust frequency:
-1. Edit the cron expression in `netlify.toml` (e.g., `0 */6 * * *` for every 6 hours)
-2. Commit & deploy – Netlify applies the new schedule automatically.
-
-To verify it runs:
-- Check Netlify -> Functions -> Scheduled Functions -> Logs
-- Or manually invoke: `curl https://<your-site>.netlify.app/.netlify/functions/keepalive`
-
-If you prefer an external uptime pinger instead, you can disable this by removing the `[[scheduled.functions]]` block.
-
-## 📁 Project Structure
+## How it works
 
 ```
-├── netlify/
-│   └── functions/         # Netlify serverless functions
-├── scripts/
-│   └── populate-database.ts # Database population script
-├── src/
-│   ├── components/        # React components
-│   ├── contexts/          # React context providers
-│   ├── data/             # Static data files
-│   ├── lib/              # Library configurations
-│   ├── services/         # API service layer
-│   └── types/            # TypeScript type definitions
-├── supabase/
-│   └── migrations/       # Database migration files
-├── .env.example          # Environment variables template
-├── .env                  # Your environment variables (not in git)
-├── netlify.toml          # Netlify configuration
-└── README.md            # This file
+Dota 2 ──GSI (HTTP POST, localhost, ≤50 ms)──▶ cyberspyde-agent ──WebSocket──▶ cyberspyde-relay ──▶ 4 teammates' agents
+                                                    │                                    └──▶ team board (browser)
+                                                    └─ overlay (transparent, click-through, always on top)
 ```
 
-## 🔧 API Endpoints
+| Crate | Binary | What it does |
+|---|---|---|
+| `crates/protocol` | – | Shared JSON message types, hero/item names |
+| `crates/relay` | `cyberspyde-relay` | Team room: fans each player's state out to everyone else; serves the team board |
+| `crates/agent` | `cyberspyde-agent` | Runs on each player's PC: GSI receiver, relay client, overlay, build helper |
+| `crates/sim` | `cyberspyde-sim` | Latency and load test with N fake players |
+| `legacy-helper/` | – | The old CYBERSPYDE Dota helper (React + Netlify + Supabase), imported from [github.com/cyberspyde/dota](https://github.com/cyberspyde/dota) at commit `9c92436`. Its `build_data_final.json` is compiled into the agent |
 
-The backend provides the following REST API endpoints:
+## Speed
 
-- `GET /api/health` - Health check
-- `GET /api/heroes` - Get all heroes
-- `GET /api/heroes/:id` - Get specific hero
-- `GET /api/builds` - Get all builds
-- `GET /api/heroes/:heroId/builds` - Get builds for specific hero
-- `GET /api/heroes/:heroId/builds/:mood` - Get specific build
+Every step is event-driven: nothing is batched and nothing runs on a fixed tick.
 
-## 🗄️ Database Management
+1. Dota posts within 50 ms of a change (`throttle 0.05`, `buffer 0`).
+2. The agent forwards the newest state immediately. If updates pile up while a send is in flight, only the latest goes.
+3. The relay serializes each update once and pushes it to every member's queue. Sockets use `TCP_NODELAY`.
+4. The receiving overlay repaints as soon as the frame lands.
 
-### Adding New Heroes
+Measured on one PC (`cyberspyde-sim`, release build):
 
-1. **Edit the data file**: `src/data/heroes.ts`
-2. **Add your hero data** following the existing format
-3. **Run the population script**:
-   ```bash
-   npm run db:populate
-   ```
+| Load | Relay overhead p50 / p99 |
+|---|---|
+| 5 players × 20 updates/s | 0.22 ms / 0.60 ms |
+| 10 players × 50 updates/s | 0.31 ms / 0.46 ms |
 
-### Adding New Builds
+So the delay is almost all **network distance**: one-way time from player A to the relay, plus from the relay to player B. The overlay header shows your live round-trip time to the relay. To keep it low when you're in different countries, **host the relay where it's roughly equidistant**. A small VPS in a central city is better than one player's home connection. Dota's own servers are in the same region, so this is usually 20–80 ms, well under the time it takes to die.
 
-1. **Edit the data file**: `src/data/builds.ts`
-2. **Add your build data** following the existing format
-3. **Run the population script**:
-   ```bash
-   npm run db:populate
-   ```
+## Building
 
-### Database Schema Updates
+Rust with the GNU toolchain, plus MinGW-w64 (WinLibs) for the linker. No Visual Studio needed.
 
-1. **Create a new migration file** in `supabase/migrations/`
-2. **Write your SQL changes**
-3. **Run the migration in Supabase SQL Editor**
-4. **Update TypeScript types** if needed:
-   ```bash
-   npm run db:types
-   ```
+1. Install rustup with the `x86_64-pc-windows-gnu` host.
+2. Unpack WinLibs MinGW-w64 (UCRT, POSIX threads, x86_64) to `%USERPROFILE%\mingw64`.
+3. Build:
 
-### Viewing Database
+```powershell
+.\build.ps1 -Test
+```
 
-1. **Go to your Supabase project dashboard**
-2. **Navigate to Table Editor**
-3. **Browse and edit your data** directly
+Binaries go to `dist\`. Only `cyberspyde-agent.exe` goes to your friends; nothing else needs installing on their PCs.
 
-## 🔍 Troubleshooting
+## Running
 
-### Database Connection Issues
+### Host (you): the relay
 
-1. **Check Supabase project status** in the dashboard
-2. **Verify environment variables** in `.env` file
-3. **Test database connection**:
-   ```bash
-   npm run db:populate
-   ```
+```powershell
+.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key choose-a-long-team-key
+```
 
-### API Connection Issues
+Open TCP port 4747 on that machine (and forward it on the router, if it's at home). The team board is at `http://<host>:4747/#key=<team-key>`.
 
-1. **Check Netlify function logs** in the dashboard
-2. **Verify environment variables** are set in Netlify
-3. **Test API directly**:
-   ```bash
-   curl https://your-site.netlify.app/.netlify/functions/api/health
-   ```
+### Every player: the agent
 
-### Build Issues
+1. Run `cyberspyde-agent.exe` once. It creates `agent.toml` next to itself.
+2. Edit `agent.toml`: set `name`, `relay = "ws://<host>:4747/ws"` and `key`.
+3. Run it again. It finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.
+4. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
+5. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
 
-1. **Check Netlify build logs**
-2. **Verify all dependencies** are in `package.json`
-3. **Test build locally**:
-   ```bash
-   npm run build
-   ```
+Try it without Dota: `cyberspyde-agent.exe --demo` (four fake teammates; one keeps getting ganked).
 
-### Migration Issues
+### Hotkeys (change them in `agent.toml`)
 
-1. **Check Supabase SQL Editor** for error messages
-2. **Verify migration syntax** is correct
-3. **Run migrations one at a time**
-4. **Check table permissions** and RLS policies
+| Key | Action |
+|---|---|
+| Numpad 1 | Need help |
+| Numpad 2 | Group up |
+| Numpad 3 | Retreat |
+| Numpad 4 | Careful, enemies missing |
+| Numpad 5 | On my way |
+| Numpad 6 | Roshan |
+| Numpad 0 | Move mode: drag the overlay, press again to save |
+| Numpad . | Hide or show the overlay |
 
-## 📱 Features in Detail
+## Builds from your pro friend
 
-### Mood-Based Hero Selection
-- Choose from 5 different moods: Aggressive, Defensive, Experimental, Creative, Chaos
-- Each mood filters heroes that match your current gaming style
-- Smart algorithm considers hero complexity and playstyle
+Put a `builds.override.json` next to the agent; see `examples/builds.override.example.json`. Entries there win over the legacy database. They can include a `skills` order (`Q W E R`, `T` for a talent); the overlay highlights the pick for your current level. Share the file with the team once, and nobody needs to ask "what do I build?" mid-game again.
 
-### Build Guides
-- **Item Progression**: Step-by-step item builds with costs and timing
-- **Playstyle Tips**: Do's, don'ts, and pro tips for each build
-- **Game Plan**: Detailed strategy for early, mid, and late game phases
+The legacy database covers 62 heroes, alphabetically from Abaddon to Monkey King. Heroes after that need override entries.
 
-### Multi-Language Support
-- English, Russian, and Uzbek translations
-- Localized hero names and descriptions
-- Cultural adaptations for different regions
+## Security notes
 
-### Responsive Design
-- Mobile-first approach
-- Tablet and desktop optimizations
-- Touch-friendly interface elements
+- The team key is checked by the relay. Traffic is plain `ws://`: game stats aren't secret, but don't reuse a real password as the key. For `wss://`, put the relay behind a TLS reverse proxy such as Caddy.
+- The GSI receiver listens only on `127.0.0.1` and requires the random token written into Dota's cfg.
 
-## 🤝 Contributing
+## Not yet built
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/new-feature`
-3. **Add your changes** to the appropriate data files
-4. **Test locally** with `npm run dev`
-5. **Update database** with `npm run db:populate`
-6. **Commit your changes**: `git commit -am 'Add new feature'`
-7. **Push to the branch**: `git push origin feature/new-feature`
-8. **Submit a pull request**
-
-### Adding New Heroes
-
-1. **Research the hero** thoroughly
-2. **Add hero data** to `src/data/heroes.ts`
-3. **Include all required fields**: id, name, role, difficulty, moods, description, strengths, weaknesses
-4. **Test the hero** appears correctly in the UI
-5. **Add translations** if needed in `src/contexts/LanguageContext.tsx`
-
-### Adding New Builds
-
-1. **Create a complete build guide** with items, playstyle, and gameplan
-2. **Add build data** to `src/data/builds.ts`
-3. **Test the build** displays correctly
-4. **Verify all item costs** and descriptions are accurate
-5. **Include detailed playstyle guidance**
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 🎮 About
-
-Created by **CYBERSPYDE** - A comprehensive tool for Dota 2 players to discover heroes and builds based on their current gaming mood and playstyle preferences.
-
-The application uses modern web technologies to provide a smooth, responsive experience while maintaining a beautiful, game-inspired design that appeals to Dota 2 players.
-
-## 📚 Additional Resources
-
-- [Supabase Documentation](https://supabase.com/docs) - Database and backend services
-- [Netlify Functions Documentation](https://docs.netlify.com/functions/overview/) - Serverless functions
-- [Vite Documentation](https://vitejs.dev/) - Frontend build tool
-- [React Documentation](https://react.dev/) - Frontend framework
-- [Tailwind CSS Documentation](https://tailwindcss.com/) - CSS framework
-
-## 🔗 Links
-
-- **Live Demo**: https://your-site.netlify.app
-- **Supabase Dashboard**: https://supabase.com/dashboard
-- **Netlify Dashboard**: https://app.netlify.com
-
----
-
-Happy gaming! 🎮✨
+- Counter-pick suggestions: player-mode GSI doesn't include the enemy draft. Next step: type enemy heroes on the team board and pull matchup data from OpenDota.
+- Item icons: the overlay uses short text labels today.

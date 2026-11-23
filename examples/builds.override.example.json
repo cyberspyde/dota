@@ -1,0 +1,25 @@
+[
+  {
+    "heroId": "juggernaut",
+    "mood": "aggressive",
+    "author": "Pro",
+    "skills": ["Q", "E", "Q", "W", "Q", "R", "Q", "E", "E", "T", "E", "R", "W", "W", "T", "W", "R"],
+    "items": [
+      { "id": "phase_boots", "name": "Phase Boots", "cost": 1500, "description": "Chase and run: armor plus speed." },
+      { "id": "bfury", "name": "Battle Fury", "cost": 4100, "description": "Farm two camps at once from minute 14." },
+      { "id": "manta", "name": "Manta Style", "cost": 4650, "description": "Dispel silences, split push." },
+      { "id": "black_king_bar", "name": "Black King Bar", "cost": 4050, "description": "Buy before the first big fight if they have 2+ stuns." },
+      { "id": "skadi", "name": "Eye of Skadi", "cost": 5300, "description": "Slow and stats for late fights." }
+    ],
+    "playstyle": {
+      "dos": ["Blade Fury the wave, not the hero, until level 6", "Healing Ward goes behind the fight"],
+      "donts": ["Don't Omnislash into 4 heroes without BKB"],
+      "tips": ["Stack the ancient camp at x:53 before you have Battle Fury"]
+    },
+    "gameplan": {
+      "early": "Last hit, trade only with Blade Fury up.",
+      "mid": "Farm jungle with Battle Fury, show up for smokes the team calls.",
+      "late": "Fight with BKB on, Omnislash the support first."
+    }
+  }
+]

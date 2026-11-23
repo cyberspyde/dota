@@ -1,0 +1,467 @@
+//! Wire protocol shared by the relay, the agent and the simulator.
+//!
+//! Every frame is one JSON object tagged by `t`. JSON keeps the browser
+//! dashboard trivial; a full player state is ~1-2 KB, so at Dota's GSI rate
+//! (at most ~20 updates/s per player) bandwidth is never the bottleneck --
+//! network round-trip time is.
+
+use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Milliseconds since the Unix epoch.
+pub fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct Item {
+    /// Internal name without the `item_` prefix, e.g. `black_king_bar`.
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charges: Option<u32>,
+    pub cooldown: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct Ability {
+    pub name: String,
+    pub level: u32,
+    pub cooldown: u32,
+    pub ultimate: bool,
+    pub can_cast: bool,
+    pub passive: bool,
+}
+
+/// What one player's own Game State Integration reports about themself.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct PlayerState {
+    /// Internal hero name without `npc_dota_hero_`, empty when not in a match.
+    pub hero: String,
+    pub level: u32,
+    pub alive: bool,
+    pub respawn_seconds: u32,
+    pub health: u32,
+    pub max_health: u32,
+    pub mana: u32,
+    pub max_mana: u32,
+    pub buyback_cost: u32,
+    pub buyback_cooldown: u32,
+    pub gold: u32,
+    pub kills: u32,
+    pub deaths: u32,
+    pub assists: u32,
+    pub last_hits: u32,
+    pub denies: u32,
+    pub gpm: u32,
+    pub xpm: u32,
+    pub has_pos: bool,
+    pub x: f32,
+    pub y: f32,
+    pub items: Vec<Item>,
+    pub backpack: Vec<Item>,
+    pub neutral: Option<Item>,
+    pub tp: Option<Item>,
+    pub abilities: Vec<Ability>,
+    pub smoked: bool,
+    pub stunned: bool,
+    pub silenced: bool,
+    pub hexed: bool,
+    pub magic_immune: bool,
+    pub team: String,
+    pub clock: i32,
+    pub game_state: String,
+    pub daytime: bool,
+}
+
+impl PlayerState {
+    pub fn hp_frac(&self) -> f32 {
+        if self.max_health == 0 {
+            0.0
+        } else {
+            self.health as f32 / self.max_health as f32
+        }
+    }
+    pub fn mana_frac(&self) -> f32 {
+        if self.max_mana == 0 {
+            0.0
+        } else {
+            self.mana as f32 / self.max_mana as f32
+        }
+    }
+    pub fn in_match(&self) -> bool {
+        !self.hero.is_empty()
+    }
+    pub fn ultimate(&self) -> Option<&Ability> {
+        self.abilities.iter().find(|a| a.ultimate)
+    }
+    pub fn has_item(&self, name: &str) -> bool {
+        self.items.iter().chain(self.backpack.iter()).any(|i| i.name == name)
+    }
+    pub fn item(&self, name: &str) -> Option<&Item> {
+        self.items.iter().find(|i| i.name == name)
+    }
+    /// Seconds until TP is ready; 0 = ready, None = no TP scroll.
+    pub fn tp_cooldown(&self) -> Option<u32> {
+        self.tp.as_ref().map(|t| t.cooldown)
+    }
+    pub fn ward_count(&self) -> (u32, u32) {
+        let mut obs = 0;
+        let mut sen = 0;
+        for i in self.items.iter().chain(self.backpack.iter()) {
+            match i.name.as_str() {
+                "ward_observer" => obs += i.charges.unwrap_or(1),
+                "ward_sentry" => sen += i.charges.unwrap_or(1),
+                "ward_dispenser" => {
+                    // Combined stack: GSI reports observer charges only.
+                    obs += i.charges.unwrap_or(1);
+                }
+                _ => {}
+            }
+        }
+        (obs, sen)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    Player,
+    Viewer,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum CalloutKind {
+    /// "I'm being attacked, come help."
+    Help,
+    /// "Group up on me."
+    Group,
+    /// "Back off / retreat."
+    Retreat,
+    /// "Enemies missing, be careful."
+    Careful,
+    /// "Coming to you."
+    OnMyWay,
+    /// "Let's take Roshan."
+    Roshan,
+}
+
+impl CalloutKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            CalloutKind::Help => "NEEDS HELP",
+            CalloutKind::Group => "GROUP UP",
+            CalloutKind::Retreat => "RETREAT",
+            CalloutKind::Careful => "CAREFUL - MISSING",
+            CalloutKind::OnMyWay => "ON MY WAY",
+            CalloutKind::Roshan => "ROSHAN",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct MemberInfo {
+    pub id: u32,
+    pub name: String,
+    pub role: Role,
+    pub state: Option<PlayerState>,
+}
+
+/// Client -> relay.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "t", rename_all = "snake_case")]
+pub enum ClientMsg {
+    Hello {
+        key: String,
+        name: String,
+        role: Role,
+        version: u32,
+    },
+    State {
+        state: PlayerState,
+    },
+    Callout {
+        kind: CalloutKind,
+        x: f32,
+        y: f32,
+    },
+    /// Free-text tip, optionally addressed to one member id.
+    Note {
+        to: Option<u32>,
+        text: String,
+    },
+    Ping {
+        id: u64,
+    },
+}
+
+/// Relay -> client.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "t", rename_all = "snake_case")]
+pub enum ServerMsg {
+    Welcome {
+        you: u32,
+        server_ms: u64,
+        members: Vec<MemberInfo>,
+    },
+    Joined {
+        member: MemberInfo,
+    },
+    Left {
+        id: u32,
+    },
+    State {
+        id: u32,
+        server_ms: u64,
+        state: PlayerState,
+    },
+    Callout {
+        id: u32,
+        server_ms: u64,
+        kind: CalloutKind,
+        x: f32,
+        y: f32,
+    },
+    Note {
+        id: u32,
+        server_ms: u64,
+        to: Option<u32>,
+        text: String,
+    },
+    Pong {
+        id: u64,
+        server_ms: u64,
+    },
+    Error {
+        message: String,
+    },
+}
+
+/// `npc_dota_hero_x` -> `x`.
+pub fn hero_short(name: &str) -> &str {
+    name.strip_prefix("npc_dota_hero_").unwrap_or(name)
+}
+
+/// Human-readable hero name from the internal short name.
+pub fn hero_display(short: &str) -> String {
+    let special = match short {
+        "antimage" => Some("Anti-Mage"),
+        "nevermore" => Some("Shadow Fiend"),
+        "zuus" => Some("Zeus"),
+        "obsidian_destroyer" => Some("Outworld Destroyer"),
+        "wisp" => Some("Io"),
+        "magnataur" => Some("Magnus"),
+        "furion" => Some("Nature's Prophet"),
+        "skeleton_king" => Some("Wraith King"),
+        "rattletrap" => Some("Clockwerk"),
+        "shredder" => Some("Timbersaw"),
+        "treant" => Some("Treant Protector"),
+        "windrunner" => Some("Windranger"),
+        "vengefulspirit" => Some("Vengeful Spirit"),
+        "queenofpain" => Some("Queen of Pain"),
+        "doom_bringer" => Some("Doom"),
+        "centaur" => Some("Centaur Warrunner"),
+        "life_stealer" => Some("Lifestealer"),
+        "abyssal_underlord" => Some("Underlord"),
+        "necrolyte" => Some("Necrophos"),
+        "keeper_of_the_light" => Some("Keeper of the Light"),
+        "spirit_breaker" => Some("Spirit Breaker"),
+        "monkey_king" => Some("Monkey King"),
+        _ => None,
+    };
+    if let Some(s) = special {
+        return s.to_string();
+    }
+    short
+        .split('_')
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Short label for an item so a row of six fits in the overlay.
+pub fn item_short(name: &str) -> String {
+    let s = match name {
+        "black_king_bar" => "BKB",
+        "blink" => "Blink",
+        "overwhelming_blink" => "OBlink",
+        "swift_blink" => "SBlink",
+        "arcane_blink" => "ABlink",
+        "ultimate_scepter" => "Aghs",
+        "aghanims_shard" => "Shard",
+        "glimmer_cape" => "Glimmer",
+        "force_staff" => "Force",
+        "hurricane_pike" => "Pike",
+        "sheepstick" => "Hex",
+        "cyclone" => "Eul",
+        "wind_waker" => "Waker",
+        "lotus_orb" => "Lotus",
+        "pipe" => "Pipe",
+        "mekansm" => "Mek",
+        "guardian_greaves" => "Greaves",
+        "magic_wand" => "Wand",
+        "magic_stick" => "Stick",
+        "power_treads" => "Treads",
+        "phase_boots" => "Phase",
+        "arcane_boots" => "Arcane",
+        "tranquil_boots" => "Tranq",
+        "travel_boots" | "travel_boots_2" => "BoT",
+        "boots" => "Boots",
+        "manta" => "Manta",
+        "refresher" => "Refresher",
+        "aeon_disk" => "Aeon",
+        "sphere" => "Linken",
+        "silver_edge" => "SilverE",
+        "invis_sword" => "Shadow",
+        "monkey_king_bar" => "MKB",
+        "greater_crit" => "Daedalus",
+        "bfury" => "BFury",
+        "desolator" => "Deso",
+        "skadi" => "Skadi",
+        "assault" => "AC",
+        "shivas_guard" => "Shiva",
+        "heart" => "Heart",
+        "satanic" => "Satanic",
+        "butterfly" => "Fly",
+        "abyssal_blade" => "Abyssal",
+        "basher" => "Basher",
+        "orchid" => "Orchid",
+        "bloodthorn" => "Bloodthorn",
+        "nullifier" => "Nullifier",
+        "radiance" => "Radiance",
+        "echo_sabre" => "Echo",
+        "harpoon" => "Harpoon",
+        "spirit_vessel" => "Vessel",
+        "urn_of_shadows" => "Urn",
+        "solar_crest" => "Crest",
+        "ward_observer" => "Obs",
+        "ward_sentry" => "Sentry",
+        "ward_dispenser" => "Wards",
+        "dust" => "Dust",
+        "smoke_of_deceit" => "Smoke",
+        "tpscroll" => "TP",
+        "tango" => "Tango",
+        "flask" => "Salve",
+        "clarity" => "Clarity",
+        "bottle" => "Bottle",
+        "gem" => "Gem",
+        "rapier" => "Rapier",
+        "cheese" => "Cheese",
+        "aegis" => "AEGIS",
+        "blade_mail" => "BMail",
+        "vanguard" => "Vanguard",
+        "crimson_guard" => "Crimson",
+        "heavens_halberd" => "Halberd",
+        "eternal_shroud" => "Shroud",
+        "holy_locket" => "Locket",
+        "octarine_core" => "Octarine",
+        "aether_lens" => "Lens",
+        "dragon_lance" => "Lance",
+        "mask_of_madness" => "MoM",
+        "armlet" => "Armlet",
+        "maelstrom" => "Maelstrom",
+        "mjollnir" => "Mjoll",
+        "gungir" => "Gleipnir",
+        "bloodstone" => "Bloodstone",
+        "helm_of_the_overlord" => "Overlord",
+        "helm_of_the_dominator" => "Dominator",
+        "orb_of_corrosion" => "Corrosion",
+        "yasha" => "Yasha",
+        "sange_and_yasha" => "S&Y",
+        "kaya_and_sange" => "K&S",
+        "yasha_and_kaya" => "Y&K",
+        "disperser" => "Disperser",
+        "ethereal_blade" => "Ethereal",
+        "dagon" | "dagon_2" | "dagon_3" | "dagon_4" | "dagon_5" => "Dagon",
+        _ => "",
+    };
+    if !s.is_empty() {
+        return s.to_string();
+    }
+    let disp = hero_display(name);
+    disp.chars().take(9).collect()
+}
+
+/// Items worth highlighting on teammates because they change fights.
+pub fn is_key_item(name: &str) -> bool {
+    matches!(
+        name,
+        "black_king_bar"
+            | "blink"
+            | "overwhelming_blink"
+            | "swift_blink"
+            | "arcane_blink"
+            | "glimmer_cape"
+            | "force_staff"
+            | "hurricane_pike"
+            | "sheepstick"
+            | "cyclone"
+            | "wind_waker"
+            | "lotus_orb"
+            | "pipe"
+            | "mekansm"
+            | "guardian_greaves"
+            | "refresher"
+            | "aeon_disk"
+            | "sphere"
+            | "silver_edge"
+            | "invis_sword"
+            | "abyssal_blade"
+            | "bloodthorn"
+            | "orchid"
+            | "nullifier"
+            | "smoke_of_deceit"
+            | "gem"
+            | "aegis"
+            | "cheese"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip_messages() {
+        let msg = ClientMsg::Callout { kind: CalloutKind::Help, x: 1.0, y: -2.0 };
+        let s = serde_json::to_string(&msg).unwrap();
+        assert!(s.contains("\"t\":\"callout\""));
+        assert_eq!(serde_json::from_str::<ClientMsg>(&s).unwrap(), msg);
+
+        let st = PlayerState { hero: "axe".into(), level: 7, ..Default::default() };
+        let m = ServerMsg::State { id: 3, server_ms: 9, state: st };
+        let s = serde_json::to_string(&m).unwrap();
+        assert_eq!(serde_json::from_str::<ServerMsg>(&s).unwrap(), m);
+    }
+
+    #[test]
+    fn lenient_state_parse() {
+        // Missing fields default instead of failing: old and new agents interoperate.
+        let st: PlayerState = serde_json::from_str(r#"{"hero":"lina","future_field":1}"#).unwrap();
+        assert_eq!(st.hero, "lina");
+        assert_eq!(st.level, 0);
+    }
+
+    #[test]
+    fn names() {
+        assert_eq!(hero_short("npc_dota_hero_nevermore"), "nevermore");
+        assert_eq!(hero_display("nevermore"), "Shadow Fiend");
+        assert_eq!(hero_display("crystal_maiden"), "Crystal Maiden");
+        assert_eq!(item_short("black_king_bar"), "BKB");
+    }
+}

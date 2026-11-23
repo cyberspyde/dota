@@ -1,41 +1,6 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.env
-
-# Vercel
-.vercel
-
-# Database
-*.db
-*.sqlite
-
-# Neon Database
-DATABASE_URL=postgresql://neondb_owner:npg_jPQnFH6WLru1@ep-delicate-truth-a2a5yewj-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-
-.vercel
-
-# Local Netlify folder
-.netlify
-.bolt
+/target
+/dist
+agent.toml
+builds.override.json
+legacy-helper/node_modules
+legacy-helper/.env
