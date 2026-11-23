@@ -3,7 +3,7 @@
 //! from each teammate's own state stream, so an alert appears on screen the
 //! moment that teammate's health update arrives -- no extra round trip.
 
-use protocol::{hero_display, CalloutKind, PlayerState, ServerMsg};
+use protocol::{hero_display, CalloutKind, Coaching, PlayerState, ServerMsg};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex, OnceLock},
@@ -21,6 +21,8 @@ pub const CALLOUT_TTL: Duration = Duration::from_secs(8);
 pub const NOTE_TTL: Duration = Duration::from_secs(45);
 /// Rough Dota map half-size in world units.
 pub const MAP_HALF: f32 = 8200.0;
+/// How far back movement is measured.
+pub const MOVE_WINDOW: Duration = Duration::from_millis(1500);
 
 #[derive(Clone, Debug)]
 pub struct Mate {
@@ -32,6 +34,7 @@ pub struct Mate {
     hp_hist: VecDeque<(Instant, f32)>,
     attacked_until: Option<Instant>,
     attack_drop: f32,
+    pos_hist: VecDeque<(Instant, f32, f32)>,
 }
 
 impl Mate {
@@ -44,7 +47,23 @@ impl Mate {
             hp_hist: VecDeque::new(),
             attacked_until: None,
             attack_drop: 0.0,
+            pos_hist: VecDeque::new(),
         }
+    }
+
+    /// Position change over the last ~1.5 s, in world units.
+    pub fn movement(&self) -> Option<(f32, f32)> {
+        let (_, x0, y0) = self.pos_hist.front()?;
+        let (_, x1, y1) = self.pos_hist.back()?;
+        Some((x1 - x0, y1 - y0))
+    }
+
+    pub fn pos(&self) -> Option<(f32, f32)> {
+        self.state.as_ref().filter(|s| s.in_match() && s.alive && s.has_pos).map(|s| (s.x, s.y))
+    }
+
+    pub fn under_attack(&self, now: Instant) -> bool {
+        self.status(now) == Status::UnderAttack
     }
 
     pub fn update(&mut self, st: PlayerState, now: Instant) {
@@ -55,7 +74,16 @@ impl Mate {
         };
         if reset {
             self.hp_hist.clear();
+            self.pos_hist.clear();
             self.attacked_until = None;
+        }
+        if st.alive && st.has_pos {
+            self.pos_hist.push_back((now, st.x, st.y));
+            while self.pos_hist.front().is_some_and(|(t, _, _)| now.duration_since(*t) > MOVE_WINDOW) {
+                self.pos_hist.pop_front();
+            }
+        } else {
+            self.pos_hist.clear();
         }
         if st.alive && st.max_health > 0 {
             let frac = st.hp_frac();
@@ -134,6 +162,8 @@ pub struct NoteEv {
 pub enum Severity {
     Danger,
     Warn,
+    /// A positive opportunity, e.g. a good moment to fight.
+    Good,
 }
 
 #[derive(Clone, Debug)]
@@ -155,6 +185,8 @@ pub struct Team {
     pub last_gsi: Option<Instant>,
     pub callouts: VecDeque<CalloutEv>,
     pub notes: VecDeque<NoteEv>,
+    /// This player's coaching switches from the host (never shown as such).
+    pub coaching: Coaching,
 }
 
 impl Team {
@@ -184,8 +216,9 @@ impl Team {
     pub fn apply(&mut self, msg: ServerMsg) {
         let now = Instant::now();
         match msg {
-            ServerMsg::Welcome { you, members, .. } => {
+            ServerMsg::Welcome { you, members, coaching, .. } => {
                 self.my_id = Some(you);
+                self.coaching = coaching;
                 self.connected = true;
                 self.last_error = None;
                 self.mates.clear();
@@ -257,11 +290,18 @@ impl Team {
                     );
                     if let Some(me) = mine.filter(|s| s.alive && s.has_pos && st.has_pos) {
                         let d = ((me.x - st.x).powi(2) + (me.y - st.y).powi(2)).sqrt();
-                        t.push_str(&format!(" - {:.0} away", d));
-                        match me.tp_cooldown() {
-                            Some(0) => t.push_str(", your TP is ready"),
-                            Some(cd) => t.push_str(&format!(", your TP {cd}s")),
-                            None => {}
+                        if d <= 1500.0 {
+                            t.push_str(" - right next to you");
+                        } else {
+                            t.push_str(&format!(" - {:.0} away", d));
+                            // TP only matters when walking would take too long.
+                            if d > 3000.0 {
+                                match me.tp_cooldown() {
+                                    Some(0) => t.push_str(", your TP is ready"),
+                                    Some(cd) => t.push_str(&format!(", your TP {cd}s")),
+                                    None => {}
+                                }
+                            }
                         }
                     }
                     out.push(Alert { severity: Severity::Danger, text: t });
@@ -371,13 +411,23 @@ mod tests {
         team.set_my_state(mine);
         let mut a = st(1000, true);
         a.has_pos = true;
-        a.x = 3000.0;
+        a.x = 4000.0;
         team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a.clone() });
         a.health = 700;
         team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a });
         let alerts = team.alerts(Instant::now());
         assert_eq!(alerts[0].severity, Severity::Danger);
-        assert!(alerts[0].text.contains("3000 away"), "{}", alerts[0].text);
+        assert!(alerts[0].text.contains("4000 away"), "{}", alerts[0].text);
         assert!(alerts[0].text.contains("TP is ready"));
+
+        // Close by: no distance or TP advice, just "right next to you".
+        let mut b = st(1000, true);
+        b.has_pos = true;
+        b.x = 600.0;
+        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b.clone() });
+        b.health = 700;
+        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b });
+        let alerts = team.alerts(Instant::now());
+        assert!(alerts.iter().any(|a| a.text.contains("right next to you") && !a.text.contains("TP")));
     }
 }

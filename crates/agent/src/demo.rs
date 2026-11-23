@@ -51,24 +51,60 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
         }
     }
 
+    let home: Vec<(f32, f32)> = mates.iter().map(|m| (m.2.x, m.2.y)).collect();
     let mut tick = tokio::time::interval(Duration::from_millis(100));
     let mut n: u64 = 0;
     loop {
         tick.tick().await;
         n += 1;
+        // 20 s script: 0-3 s Bek is ganked alone; 6-10 s Pro and Sardor
+        // join me with ults up (a good fight window); 10-14 s we fight and I
+        // get low; 14 s Pro calls retreat; then everyone recovers.
+        let cycle = n % 200;
         let clock = (n / 10) as i32 + 600;
         me.clock = clock;
-        me.gold = 900 + (n % 200) as u32 * 10;
+        me.gold = 900 + cycle as u32 * 10;
         me.x += ((n as f32) / 30.0).sin() * 15.0;
         me.y += ((n as f32) / 25.0).cos() * 15.0;
         if let Some(r) = me.abilities.last_mut() {
-            r.cooldown = (40 - (n / 10) % 41) as u32;
+            r.cooldown = match cycle {
+                60..=109 => 0,
+                110..=199 => (200 - cycle as u32) / 2,
+                _ => 0,
+            };
+        }
+        if (100..140).contains(&cycle) {
+            me.health = me.health.saturating_sub(25).max(250);
+        } else {
+            me.health = (me.health + 8).min(me.max_health);
         }
         state_tx.send_replace(Some(me.clone()));
         team.lock().unwrap().set_my_state(me.clone());
 
+        let grouped = (60..170).contains(&cycle);
+        for (i, off) in [(0usize, (600.0, 300.0)), (3usize, (-400.0, 700.0))] {
+            let mate = &mut mates[i].2;
+            if grouped {
+                mate.x = me.x + off.0;
+                mate.y = me.y + off.1;
+            } else {
+                mate.x = home[i].0;
+                mate.y = home[i].1;
+            }
+        }
+        {
+            let sardor = &mut mates[3].2;
+            if (100..140).contains(&cycle) {
+                sardor.health = sardor.health.saturating_sub(18).max(300);
+            } else {
+                sardor.health = (sardor.health + 8).min(sardor.max_health);
+            }
+        }
+        if cycle == 140 {
+            team.lock().unwrap().apply(ServerMsg::Callout { id: 1001, server_ms: 0, kind: CalloutKind::Retreat, x: me.x, y: me.y });
+        }
+
         // Bek gets jumped every 20 s: 3 s of burst damage, dies on every other cycle.
-        let cycle = n % 200;
         let bek = &mut mates[2].2;
         bek.clock = clock;
         if cycle < 30 {
@@ -105,7 +141,7 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
             // The relay's Welcome resets the mate list, so re-add fakes by name.
             team.lock().unwrap().mates.entry(*id).or_insert_with(|| crate::team::Mate::new(*id, (*name).into()));
             st.clock = clock;
-            if *id != 1003 {
+            if *id == 1002 {
                 st.x += ((n as f32 + *id as f32) / 20.0).sin() * 12.0;
                 st.y += ((n as f32 + *id as f32) / 23.0).cos() * 12.0;
             }

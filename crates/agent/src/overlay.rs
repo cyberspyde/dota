@@ -2,6 +2,7 @@
 //! borderless-window mode (exclusive fullscreen draws over every window).
 
 use crate::{
+    coach::Coach,
     builds::{advise, BuildDb},
     config::{self, Config},
     team::{Mate, Notifier, Severity, SharedTeam, Status, MAP_HALF},
@@ -82,6 +83,7 @@ pub struct OverlayApp {
     edit: bool,
     hidden: bool,
     flash: Option<(String, Instant)>,
+    coach: Coach,
 }
 
 pub fn run(
@@ -171,6 +173,7 @@ impl OverlayApp {
             edit: false,
             hidden: false,
             flash: None,
+            coach: Coach::default(),
         }
     }
 
@@ -233,11 +236,16 @@ impl eframe::App for OverlayApp {
         ctx.request_repaint_after(Duration::from_millis(200));
 
         let now = Instant::now();
-        let (alerts, mates, me, connected, err, rtt, last_gsi, callouts, notes) = {
+        let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, notes) = {
             let mut t = self.team.lock().unwrap();
             t.prune(now);
+            let coach = self.coach.evaluate(&t, now);
+            let mut alerts = coach.alerts.clone();
+            alerts.extend(t.alerts(now));
+            alerts.sort_by_key(|a| a.severity);
             (
-                t.alerts(now),
+                alerts,
+                coach,
                 t.mates.values().cloned().collect::<Vec<_>>(),
                 t.me.clone(),
                 t.connected,
@@ -306,6 +314,21 @@ impl eframe::App for OverlayApp {
                     }
                 }
 
+                // One big instruction
+                if let Some((text, sev)) = &coach.banner {
+                    let c = if *sev == Severity::Danger { RED } else { AMBER };
+                    ui.add_space(4.0);
+                    egui::Frame::new()
+                        .fill(c.gamma_multiply(0.18))
+                        .stroke(Stroke::new(1.5_f32, c))
+                        .corner_radius(6.0)
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.label(RichText::new(text).color(c).strong().size(15.5 * coach.scale));
+                        });
+                }
+
                 // Alerts
                 if !alerts.is_empty() {
                     ui.add_space(4.0);
@@ -313,18 +336,19 @@ impl eframe::App for OverlayApp {
                         let (c, size) = match a.severity {
                             Severity::Danger => (RED, 13.5),
                             Severity::Warn => (AMBER, 12.0),
+                            Severity::Good => (GREEN, 12.5),
                         };
-                        ui.label(RichText::new(&a.text).color(c).size(size).strong());
+                        ui.label(RichText::new(&a.text).color(c).size(size * coach.scale).strong());
                     }
                 }
 
-                // Team rows
+                // Team rows (compact during a fight when focus is on)
                 ui.add_space(6.0);
                 if let Some(me) = &me {
-                    mate_row(ui, me, now, true);
+                    mate_row(ui, me, now, true, coach.focus);
                 }
                 for m in &mates {
-                    mate_row(ui, m, now, false);
+                    mate_row(ui, m, now, false, coach.focus);
                 }
                 if mates.is_empty() {
                     ui.label(RichText::new("No teammates connected yet").color(DIM).size(11.0));
@@ -336,8 +360,8 @@ impl eframe::App for OverlayApp {
                     radar(ui, me.as_ref(), &mates, &callouts, now);
                 }
 
-                // Build helper
-                if self.cfg.overlay.show_build {
+                // Build helper (hidden mid-fight when focus is on)
+                if self.cfg.overlay.show_build && !coach.focus {
                     if let Some(st) = me.as_ref().and_then(|m| m.state.as_ref()) {
                         if let Some(adv) = advise(&self.db, st, &self.cfg.build_mood) {
                             ui.add_space(6.0);
@@ -408,7 +432,7 @@ impl eframe::App for OverlayApp {
                 }
 
                 // Notes from the team board
-                if !notes.is_empty() {
+                if !notes.is_empty() && !coach.focus {
                     ui.add_space(4.0);
                     ui.separator();
                     for n in notes.iter().rev().take(3) {
@@ -445,7 +469,7 @@ fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, height: f32) {
     p.rect_filled(fill, CornerRadius::same(2), color);
 }
 
-fn mate_row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
+fn mate_row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool, compact: bool) {
     let status = m.status(now);
     ui.horizontal(|ui| {
         dot(ui, status_color(status));
@@ -514,7 +538,8 @@ fn mate_row(ui: &mut egui::Ui, m: &Mate, now: Instant, is_me: bool) {
         if st.smoked {
             ui.label(RichText::new("SMOKED").color(BLUE).size(10.5));
         }
-        for it in &st.items {
+        // Compact mode keeps only fight-changing items.
+        for it in st.items.iter().filter(|i| !compact || is_key_item(&i.name)) {
             let key = is_key_item(&it.name);
             let mut label = item_short(&it.name);
             if it.cooldown > 0 {

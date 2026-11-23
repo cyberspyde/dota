@@ -1,0 +1,20 @@
+# Example private coaching profiles. Copy to team.toml on the host PC
+# (git-ignored) and run: cyberspyde-relay --key <team-key> --team team.toml
+#
+# Each player receives only their own `features` and `alert_scale`; `notes`
+# never leave the host. Names must match each player's agent.toml `name`.
+#
+# Features: isolation_warning, team_mode_banner, fight_focus, join_fight_nudge,
+#           ward_reminders, engage_advisor, low_hp_retreat, buyback_guard
+# alert_scale: 1.0 normal, up to 1.6.
+
+[[player]]
+names = ["PlayerOne"]
+features = ["join_fight_nudge", "buyback_guard"]
+notes = "Farms a lot; remind them when the team fights."
+
+[[player]]
+names = ["PlayerTwo", "p2"]
+features = ["team_mode_banner", "fight_focus", "low_hp_retreat"]
+alert_scale = 1.3
+notes = "Gets lost in big fights."

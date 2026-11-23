@@ -6,6 +6,7 @@
 //! run with TCP_NODELAY so small frames are not held back by Nagle.
 
 mod hub;
+mod profiles;
 
 use axum::{
     extract::{
@@ -19,7 +20,7 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use hub::Hub;
 use protocol::{now_ms, ClientMsg, Role, ServerMsg, PROTOCOL_VERSION};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
@@ -31,11 +32,19 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(20);
 struct Config {
     bind: SocketAddr,
     key: String,
+    team: Option<PathBuf>,
+}
+
+/// Shared by every connection handler.
+struct AppState {
+    hub: Hub,
+    team: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Config, String> {
     let mut bind: SocketAddr = "0.0.0.0:4747".parse().unwrap();
     let mut key = std::env::var("RELAY_KEY").unwrap_or_default();
+    let mut team = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -47,9 +56,11 @@ fn parse_args() -> Result<Config, String> {
                     .map_err(|e| format!("bad --bind: {e}"))?
             }
             "--key" => key = args.next().ok_or("--key needs a value")?,
+            "--team" => team = Some(PathBuf::from(args.next().ok_or("--team needs a path")?)),
             "-h" | "--help" => {
                 println!(
-                    "cyberspyde-relay [--bind 0.0.0.0:4747] --key <team-key>\n\
+                    "cyberspyde-relay [--bind 0.0.0.0:4747] --key <team-key> [--team team.toml]\n\
+                     --team: private per-player coaching profiles, re-read on each connect.\n\
                      The key can also come from the RELAY_KEY environment variable.\n\
                      Dashboard: http://<host>:<port>/#key=<team-key>"
                 );
@@ -61,7 +72,10 @@ fn parse_args() -> Result<Config, String> {
     if key.len() < 6 {
         return Err("set a team key of at least 6 characters with --key or RELAY_KEY".into());
     }
-    Ok(Config { bind, key })
+    if let Some(t) = &team {
+        profiles::load(t)?;
+    }
+    Ok(Config { bind, key, team })
 }
 
 #[tokio::main]
@@ -81,7 +95,10 @@ async fn main() {
         }
     };
 
-    let hub = Arc::new(Hub::new(cfg.key));
+    if let Some(t) = &cfg.team {
+        info!("coaching profiles: {}", t.display());
+    }
+    let hub = Arc::new(AppState { hub: Hub::new(cfg.key), team: cfg.team });
     let app = Router::new()
         .route("/", get(|| async { Html(DASHBOARD) }))
         .route("/health", get(|| async { "ok" }))
@@ -111,7 +128,7 @@ async fn main() {
 
 async fn ws_upgrade(
     ws: WebSocketUpgrade,
-    State(hub): State<Arc<Hub>>,
+    State(hub): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     ws.max_message_size(256 * 1024)
@@ -122,7 +139,8 @@ fn encode(msg: &ServerMsg) -> axum::extract::ws::Utf8Bytes {
     serde_json::to_string(msg).expect("serialize").into()
 }
 
-async fn handle_socket(socket: WebSocket, hub: Arc<Hub>, addr: SocketAddr) {
+async fn handle_socket(socket: WebSocket, state: Arc<AppState>, addr: SocketAddr) {
+    let hub = &state.hub;
     let (mut sink, mut stream) = socket.split();
 
     // 1. Handshake.
@@ -166,11 +184,18 @@ async fn handle_socket(socket: WebSocket, hub: Arc<Hub>, addr: SocketAddr) {
     let (id, members) = hub.join(name.clone(), role, tx.clone(), kick_tx);
     info!("{addr}: {name} joined as #{id} ({role:?})");
 
+    // Only this player's own switches; never anyone else's.
+    let coaching = if role == Role::Player {
+        profiles::for_player(state.team.as_deref(), &name)
+    } else {
+        protocol::Coaching::default()
+    };
     if sink
         .send(Message::Text(encode(&ServerMsg::Welcome {
             you: id,
             server_ms: now_ms(),
             members,
+            coaching,
         })))
         .await
         .is_err()

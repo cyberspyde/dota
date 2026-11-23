@@ -17,6 +17,23 @@ These are real screen captures of `cyberspyde-agent --demo` over a plain backdro
 
 ![Team board](docs/screenshots/team-board.jpg)
 
+## Personal coaching (private)
+
+The host can switch on coaching aids per player in a private `team.toml` (see `examples/team.example.toml`). It lives only on the host PC and is git-ignored. When a player connects, the relay sends them only their own switches, for example `["team_mode_banner", "fight_focus"]`, plus an alert text size. Nobody receives anyone else's profile, and the host's `notes` never leave the file. Players just see clearer prompts.
+
+| Switch | What the player sees |
+|---|---|
+| `team_mode_banner` | A banner across the top: TEAM IS FIGHTING / RETREATING / GROUPING. It turns red ("TURN AROUND, GO IN" or "STOP - RUN BACK") when the player moves the opposite way from the team |
+| `fight_focus` | During a fight, the build panel, notes and minor items disappear; only alerts and key items stay |
+| `join_fight_nudge` | "Team is fighting 5200 away - TP in now" |
+| `isolation_warning` | "You're alone - nearest ally X is 6100 away" (mid-game, outside base, after 8 s) |
+| `engage_advisor` | "Good fight window: 3 of you close, 3 ults ready - go short and fast", and "Fight is dragging - disengage now" |
+| `low_hp_retreat` | "LOW HP 30% - back off now" while hurt in a fight |
+| `ward_reminders` | "No observer wards on the team" / "Place your observer ward" |
+| `buyback_guard` | Late game: "You spent below buyback gold" |
+
+How the team's state is read: allies taking burst damage with another ally within 2500 = a team fight; a retreat callout or 2+ dead = retreating; a group-up callout = grouping. Movement is measured over the last 1.5 s. Everything is computed on each player's own PC from the shared state, so it adds no delay.
+
 ## Fair play
 
 The tool uses only Valve's official **Game State Integration (GSI)**. In player mode, Dota sends each player only their own hero, items and abilities. Sharing that with your own team is the same as reading it out on voice chat, just faster and without the shouting. It never reads game memory or injects anything, and it shows **nothing about enemies**. Spectator/observer feeds are explicitly ignored (`gsi.rs`).
@@ -74,8 +91,10 @@ Binaries go to `dist\`. Only `cyberspyde-agent.exe` goes to your friends; nothin
 ### Host (you): the relay
 
 ```powershell
-.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key choose-a-long-team-key
+.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key choose-a-long-team-key --team team.toml
 ```
+
+`--team` is optional; without it nobody gets coaching aids. The file is re-read on every connect, so edits apply when a player reconnects.
 
 Open TCP port 4747 on that machine (and forward it on the router, if it's at home). The team board is at `http://<host>:4747/#key=<team-key>`.
 

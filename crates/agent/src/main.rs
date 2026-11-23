@@ -5,6 +5,7 @@
 //! Usage: cyberspyde-agent [--config agent.toml] [--demo] [--headless] [--no-install]
 
 mod builds;
+mod coach;
 mod config;
 mod demo;
 mod dota;

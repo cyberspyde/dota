@@ -167,6 +167,55 @@ impl CalloutKind {
     }
 }
 
+/// Optional coaching aids, chosen per player by the team host. Only these
+/// neutral feature switches are sent, and only to the player they belong to;
+/// the host's reasons for choosing them never leave the host.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum Feature {
+    /// Warn when you are far from every teammate mid-game.
+    IsolationWarning,
+    /// Big "team is fighting / retreating" banner, and a warning when you
+    /// move the other way.
+    TeamModeBanner,
+    /// During fights, hide everything but alerts and instructions.
+    FightFocus,
+    /// Tell you plainly when the team is fighting without you.
+    JoinFightNudge,
+    /// Reminders to buy and place observer wards.
+    WardReminders,
+    /// Points out short, winnable fight windows and when a fight drags on.
+    EngageAdvisor,
+    /// "Low HP, back off" when you are hurt in a fight.
+    LowHpRetreat,
+    /// Late game: warns when you spend below buyback gold.
+    BuybackGuard,
+    /// Sent by a newer relay; ignored by this agent.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct Coaching {
+    pub features: Vec<Feature>,
+    /// Alert text size multiplier; 0 means 1.0.
+    pub alert_scale: f32,
+}
+
+impl Coaching {
+    pub fn has(&self, f: Feature) -> bool {
+        self.features.contains(&f)
+    }
+    pub fn scale(&self) -> f32 {
+        if self.alert_scale > 0.0 {
+            self.alert_scale.clamp(0.8, 1.6)
+        } else {
+            1.0
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MemberInfo {
     pub id: u32,
@@ -211,6 +260,9 @@ pub enum ServerMsg {
         you: u32,
         server_ms: u64,
         members: Vec<MemberInfo>,
+        /// This player's own coaching switches (empty when the host set none).
+        #[serde(default)]
+        coaching: Coaching,
     },
     Joined {
         member: MemberInfo,
@@ -455,6 +507,16 @@ mod tests {
         let st: PlayerState = serde_json::from_str(r#"{"hero":"lina","future_field":1}"#).unwrap();
         assert_eq!(st.hero, "lina");
         assert_eq!(st.level, 0);
+    }
+
+    #[test]
+    fn coaching_is_forward_compatible() {
+        let c: Coaching = serde_json::from_str(r#"{"features":["fight_focus","from_the_future"]}"#).unwrap();
+        assert_eq!(c.features, vec![Feature::FightFocus, Feature::Unknown]);
+        assert_eq!(c.scale(), 1.0);
+        // An old relay's Welcome without coaching still parses.
+        let w: ServerMsg = serde_json::from_str(r#"{"t":"welcome","you":1,"server_ms":0,"members":[]}"#).unwrap();
+        assert!(matches!(w, ServerMsg::Welcome { coaching, .. } if coaching.features.is_empty()));
     }
 
     #[test]

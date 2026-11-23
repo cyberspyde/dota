@@ -4,3 +4,5 @@ agent.toml
 builds.override.json
 legacy-helper/node_modules
 legacy-helper/.env
+# Private coaching profiles: host machine only, never commit
+team.toml
