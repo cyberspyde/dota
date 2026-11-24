@@ -7,7 +7,9 @@
 
 mod ai;
 mod analysis;
+mod facts;
 mod hub;
+mod opendota;
 mod profiles;
 mod record;
 mod store;
@@ -44,6 +46,7 @@ struct Config {
     data: PathBuf,
     public: PathBuf,
     ai: ai::AiConfig,
+    opendota: bool,
 }
 
 /// Shared by every connection handler.
@@ -54,6 +57,10 @@ pub struct AppState {
     pub store: store::Store,
     pub public: PathBuf,
     pub ai: ai::AiConfig,
+    /// Fetch replay facts from OpenDota after each game.
+    pub opendota: bool,
+    /// OpenDota hero id -> short name, fetched once.
+    pub heroes: tokio::sync::Mutex<std::collections::HashMap<u32, String>>,
 }
 
 fn parse_args() -> Result<Config, String> {
@@ -63,6 +70,7 @@ fn parse_args() -> Result<Config, String> {
     let mut data = PathBuf::from("data");
     let mut public = PathBuf::from("public");
     let mut ai = ai::AiConfig { url: String::new(), model: "qwen3.6-agent".into(), language: "English".into() };
+    let mut opendota = true;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -86,6 +94,7 @@ fn parse_args() -> Result<Config, String> {
             "--ai-url" => ai.url = args.next().ok_or("--ai-url needs a URL")?,
             "--ai-model" => ai.model = args.next().ok_or("--ai-model needs a name")?,
             "--ai-lang" => ai.language = args.next().ok_or("--ai-lang needs a language")?,
+            "--no-opendota" => opendota = false,
             "analyze" => {
                 // cyberspyde-relay analyze <match.rec.json>: re-run the analysis offline.
                 let p = args.next().ok_or("analyze needs a .rec.json path")?;
@@ -115,7 +124,7 @@ fn parse_args() -> Result<Config, String> {
     if let Some(t) = &team {
         profiles::load(t)?;
     }
-    Ok(Config { bind, key, team, data, public, ai })
+    Ok(Config { bind, key, team, data, public, ai, opendota })
 }
 
 #[tokio::main]
@@ -160,6 +169,8 @@ async fn main() {
         store,
         public: cfg.public,
         ai: cfg.ai,
+        opendota: cfg.opendota,
+        heroes: tokio::sync::Mutex::new(Default::default()),
     });
     tokio::spawn(web::finisher(hub.clone()));
     let app = web::routes()

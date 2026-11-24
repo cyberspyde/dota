@@ -68,12 +68,23 @@ pub struct PlayerReport {
     pub xpm: u32,
     pub level: u32,
     pub items: Vec<String>,
-    pub usefulness: u32,
-    pub grade: String,
     pub title: String,
     pub metrics: Metrics,
     pub worst: Vec<Moment>,
     pub best: Vec<Moment>,
+    /// Ran the app this game (so position-based facts exist).
+    #[serde(default = "yes")]
+    pub app: bool,
+    /// Plain-language facts shown on the site and given to the AI coach.
+    #[serde(default)]
+    pub cards: Vec<crate::facts::Card>,
+    /// Facts from OpenDota's replay parse, when available.
+    #[serde(default)]
+    pub od: Option<crate::facts::OdFacts>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -110,8 +121,18 @@ pub struct MatchReport {
     pub players: Vec<PlayerReport>,
     pub fights: Vec<Fight>,
     pub timeline: Vec<TimelinePoint>,
-    pub mvp: Option<String>,
     pub summary: String,
+    /// Enemy heroes (display names), from OpenDota.
+    #[serde(default)]
+    pub enemies: Vec<String>,
+    /// Which enemy heroes killed us most, from OpenDota.
+    #[serde(default)]
+    pub killers: Vec<(String, u32)>,
+    /// "measured" (our positions) or "replay" (OpenDota team fights).
+    #[serde(default)]
+    pub fights_source: String,
+    #[serde(default)]
+    pub od: crate::opendota::OdStatus,
     #[serde(default)]
     pub ai_review: Option<String>,
     #[serde(default)]
@@ -180,7 +201,6 @@ pub fn analyze(rec: &Recording) -> MatchReport {
     let start = tracks.iter().filter_map(|t| t.samples.first()).map(|s| s.t).min().unwrap_or(0);
     let end = rec.duration();
     let ctx = Ctx { tracks, start, end };
-    let n = ctx.tracks.len();
 
     // ---- fights: seconds where an ally lost >=12% HP in 3 s with another ally near, or died.
     let mut hot: Vec<(i32, f32, f32)> = Vec::new();
@@ -467,7 +487,6 @@ pub fn analyze(rec: &Recording) -> MatchReport {
             push(&mut best, last.t, "alive", 2, format!("Only {} deaths in {}", m.deaths, clock(last.t)));
         }
 
-        let score = usefulness(&m, n);
         worst.sort_by(|a, b| b.weight.cmp(&a.weight).then(a.t.cmp(&b.t)));
         worst.truncate(6);
         best.sort_by(|a, b| b.weight.cmp(&a.weight).then(a.t.cmp(&b.t)));
@@ -485,16 +504,17 @@ pub fn analyze(rec: &Recording) -> MatchReport {
             xpm: last.xpm,
             level: last.lvl,
             items: tr.items.clone(),
-            usefulness: score,
-            grade: grade(score).into(),
             title: String::new(),
             metrics: m,
             worst,
             best,
+            app: true,
+            cards: Vec::new(),
+            od: None,
         });
     }
     assign_titles(&mut reports);
-    reports.sort_by(|a, b| b.usefulness.cmp(&a.usefulness));
+    reports.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     // Team spread over time, every 30 s.
     let mut timeline = Vec::new();
@@ -531,19 +551,10 @@ pub fn analyze(rec: &Recording) -> MatchReport {
         .collect();
 
     let won = (!rec.win_team.is_empty() && !team.is_empty()).then(|| rec.win_team == team);
-    let mvp = reports.first().map(|r| r.name.clone());
     let fw = fights.iter().filter(|f| f.result == "won").count();
     let fl = fights.iter().filter(|f| f.result == "lost").count();
-    let summary = format!(
-        "{} in {}. {} team fights: {} won, {} lost.{}",
-        match won { Some(true) => "Victory", Some(false) => "Defeat", None => "Game" },
-        clock(end),
-        fights.len(),
-        fw,
-        fl,
-        mvp.as_ref().map(|m| format!(" Most useful: {m}.")).unwrap_or_default()
-    );
-    MatchReport {
+    let summary = summary(won, end, fights.len(), fw, fl);
+    let mut report = MatchReport {
         match_id: rec.match_id.clone(),
         started_ms: rec.started_ms,
         duration: end,
@@ -553,48 +564,36 @@ pub fn analyze(rec: &Recording) -> MatchReport {
         players: reports,
         fights,
         timeline,
-        mvp,
         summary,
+        enemies: Vec::new(),
+        killers: Vec::new(),
+        fights_source: "measured".into(),
+        od: Default::default(),
         ai_review: None,
         ai_status: String::new(),
+    };
+    for p in &mut report.players {
+        p.cards = crate::facts::cards(p, report.fights.len() as u32);
     }
+    report
 }
 
-fn dur(s: i32) -> String {
+pub fn summary(won: Option<bool>, end: i32, n: usize, fw: usize, fl: usize) -> String {
+    format!(
+        "{} in {}. {} team fights: {} won, {} lost.",
+        match won { Some(true) => "Victory", Some(false) => "Defeat", None => "Game" },
+        clock(end),
+        n,
+        fw,
+        fl
+    )
+}
+
+pub fn dur(s: i32) -> String {
     if s >= 60 {
         format!("{}m {:02}s", s / 60, s % 60)
     } else {
         format!("{s}s")
-    }
-}
-
-/// 0..100: how much this player helped the team, not how much they farmed.
-pub fn usefulness(m: &Metrics, team_size: usize) -> u32 {
-    let mut s = 50.0f32;
-    s += if m.fights_total > 0 { m.fights_present as f32 / m.fights_total as f32 * 25.0 - 10.0 } else { 0.0 };
-    s += if m.calls_total > 0 { m.calls_answered as f32 / m.calls_total as f32 * 12.0 - 5.0 } else { 0.0 };
-    s += m.kill_participation * 0.18;
-    s -= m.deaths_alone as f32 * 4.0;
-    s -= m.deaths as f32 * 1.2;
-    s -= m.fights_missed_tp_ready as f32 * 3.0;
-    s -= m.deaths_with_items_ready as f32 * 2.0;
-    s -= m.deaths_after_retreat_call as f32 * 3.0;
-    s -= (m.hoard_s as f32 / 60.0).min(10.0);
-    s -= (m.ward_hold_s as f32 / 120.0).min(4.0);
-    s += (m.obs_placed as f32 * 0.8).min(8.0);
-    if team_size >= 3 {
-        s -= (m.alone_pct - 35.0).max(0.0) * 0.15;
-    }
-    s.clamp(0.0, 100.0).round() as u32
-}
-
-pub fn grade(score: u32) -> &'static str {
-    match score {
-        85.. => "S",
-        72..=84 => "A",
-        58..=71 => "B",
-        45..=57 => "C",
-        _ => "D",
     }
 }
 
@@ -702,9 +701,11 @@ pub mod tests {
         assert!(c.metrics.hoard_s >= 120);
         assert!(c.worst.iter().any(|m| m.kind == "missed_fight"));
         assert!(c.worst.iter().any(|m| m.text.contains("alone")));
-        let a = r.players.iter().find(|p| p.name == "A").unwrap();
-        assert!(a.usefulness > c.usefulness);
-        assert_eq!(r.players[0].name, r.mvp.clone().unwrap());
         assert!(!c.title.is_empty());
+        // Plain-language facts instead of a score.
+        assert!(c.cards.iter().any(|k| k.id == "skipped_tp" && k.num == 1.0), "{:?}", c.cards);
+        assert!(c.cards.iter().any(|k| k.id == "fights" && k.tone == "bad"), "{:?}", c.cards);
+        let a = r.players.iter().find(|p| p.name == "A").unwrap();
+        assert!(a.cards.iter().any(|k| k.id == "fights" && k.tone == "good"), "{:?}", a.cards);
     }
 }

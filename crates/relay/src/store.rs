@@ -16,10 +16,11 @@ pub struct Summary {
     pub started_ms: u64,
     pub duration: i32,
     pub won: Option<bool>,
-    pub mvp: Option<String>,
     pub summary: String,
     pub players: Vec<SummaryPlayer>,
+    pub enemies: Vec<String>,
     pub has_ai: bool,
+    pub od: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -27,19 +28,12 @@ pub struct SummaryPlayer {
     pub name: String,
     pub hero: String,
     pub hero_name: String,
-    pub usefulness: u32,
-    pub grade: String,
     pub title: String,
-    pub k: u32,
-    pub d: u32,
-    pub a: u32,
-    pub deaths_alone: u32,
-    pub fights_present: u32,
-    pub fights_total: u32,
-    pub calls_answered: u32,
-    pub calls_total: u32,
-    pub fights_missed_tp_ready: u32,
-    pub hoard_s: i32,
+    pub app: bool,
+    /// The fight-attendance fact ("3 of 7"), the first thing friends look at.
+    pub fights: String,
+    /// The most telling bad fact, if any.
+    pub low: Option<String>,
 }
 
 fn summarize(r: &MatchReport) -> Summary {
@@ -48,9 +42,10 @@ fn summarize(r: &MatchReport) -> Summary {
         started_ms: r.started_ms,
         duration: r.duration,
         won: r.won,
-        mvp: r.mvp.clone(),
         summary: r.summary.clone(),
         has_ai: r.ai_review.is_some(),
+        enemies: r.enemies.clone(),
+        od: r.od.state.clone(),
         players: r
             .players
             .iter()
@@ -58,19 +53,15 @@ fn summarize(r: &MatchReport) -> Summary {
                 name: p.name.clone(),
                 hero: p.hero.clone(),
                 hero_name: p.hero_name.clone(),
-                usefulness: p.usefulness,
-                grade: p.grade.clone(),
                 title: p.title.clone(),
-                k: p.k,
-                d: p.d,
-                a: p.a,
-                deaths_alone: p.metrics.deaths_alone,
-                fights_present: p.metrics.fights_present,
-                fights_total: p.metrics.fights_total,
-                calls_answered: p.metrics.calls_answered,
-                calls_total: p.metrics.calls_total,
-                fights_missed_tp_ready: p.metrics.fights_missed_tp_ready,
-                hoard_s: p.metrics.hoard_s,
+                app: p.app,
+                fights: p
+                    .cards
+                    .iter()
+                    .find(|c| c.id == "fights")
+                    .and_then(|c| c.text.strip_prefix("Showed up to ").map(|s| s.replace(" team fights", "")))
+                    .unwrap_or_default(),
+                low: p.cards.iter().find(|c| c.tone == "bad").map(|c| c.text.clone()),
             })
             .collect(),
     }
@@ -96,7 +87,7 @@ impl Store {
             for e in rd.flatten() {
                 let p = e.path();
                 let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if !name.ends_with(".json") || name.ends_with(".rec.json") {
+                if !name.ends_with(".json") || name.ends_with(".rec.json") || name.ends_with(".od.json") {
                     continue;
                 }
                 match std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<MatchReport>(&t).ok()) {
@@ -121,11 +112,33 @@ impl Store {
         serde_json::from_str(&text).ok()
     }
 
+    /// Full reports, newest first (for trends and "usually").
+    pub fn history(&self, limit: usize) -> Vec<MatchReport> {
+        let ids: Vec<String> = self.list().into_iter().take(limit).map(|s| s.match_id).collect();
+        ids.iter().filter_map(|id| self.get(id)).collect()
+    }
+
     pub fn get_recording(&self, id: &str) -> Option<Recording> {
         if !valid_id(id) {
             return None;
         }
         let text = std::fs::read_to_string(self.dir.join(format!("{id}.rec.json"))).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
+    /// OpenDota's parsed match, kept so reports can be rebuilt later.
+    pub fn save_opendota(&self, id: &str, m: &crate::opendota::Match) -> Result<(), String> {
+        if !valid_id(id) {
+            return Err(format!("bad match id {id:?}"));
+        }
+        write_atomic(&self.dir.join(format!("{id}.od.json")), &serde_json::to_vec(m).map_err(|e| e.to_string())?)
+    }
+
+    pub fn get_opendota(&self, id: &str) -> Option<crate::opendota::Match> {
+        if !valid_id(id) {
+            return None;
+        }
+        let text = std::fs::read_to_string(self.dir.join(format!("{id}.od.json"))).ok()?;
         serde_json::from_str(&text).ok()
     }
 

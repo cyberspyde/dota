@@ -158,8 +158,8 @@ footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--m
 .res.w { color: var(--good); } .res.l { color: var(--bad); }
 .heroes { display: flex; gap: 8px; flex-wrap: wrap; }
 .hchip { display: flex; align-items: center; gap: 7px; padding: 4px 9px 4px 4px; border-radius: 9px; background: rgba(255,255,255,0.05); font-size: 13px; }
-.grade { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font: 700 13px var(--display); color: #061015; }
-.grade.S { background: #35e0bd; } .grade.A { background: #7fdc6a; } .grade.B { background: #e6d35a; } .grade.C { background: #f29a4a; } .grade.D { background: #ff5a5f; }
+.fchip { font: 600 11.5px var(--display); padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,0.07); color: var(--text2); }
+.fchip.bad { color: var(--bad); background: rgba(255,90,95,0.12); } .fchip.good { color: var(--good); background: rgba(63,207,110,0.12); }
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 
 /* match detail */
@@ -171,10 +171,6 @@ footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--m
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .panel { padding: 20px; }
 .panel h2 { font-size: 18px; }
-.rank { display: grid; grid-template-columns: 24px 120px 1fr 44px; gap: 12px; align-items: center; padding: 7px 0; }
-.rank .rbar { height: 10px; border-radius: 4px; background: rgba(255,255,255,0.06); position: relative; }
-.rank .rbar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
-.rank .v { text-align: right; font: 600 15px var(--display); }
 .chart { position: relative; }
 .chart svg { width: 100%; display: block; overflow: visible; }
 .tip { position: absolute; pointer-events: none; background: rgba(10,14,20,0.95); border: 1px solid var(--line); border-radius: 9px;
@@ -184,15 +180,29 @@ footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--m
 .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .prep { padding: 20px; }
 .prep .top { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
-.ring { width: 64px; height: 64px; flex: none; position: relative; }
-.ring svg { width: 64px; height: 64px; transform: rotate(-90deg); }
-.ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 19px var(--display); }
 .prep .title { color: var(--accent); font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; }
 .mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
 .m { padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,0.04); }
 .m b { display: block; font: 600 16px var(--display); }
 .m span { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
 .m.badv b { color: var(--bad); } .m.goodv b { color: var(--good); }
+.facts { list-style: none; padding: 0; margin: 4px 0 0; }
+.facts li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.facts li:first-child { border-top: 0; }
+.facts .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; background: var(--muted); }
+.facts .good .dot { background: var(--good); } .facts .bad .dot { background: var(--bad); }
+.facts .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: rgba(255,255,255,0.06); color: var(--muted); }
+.tag.better { color: var(--good); background: rgba(63,207,110,0.10); } .tag.worse { color: var(--bad); background: rgba(255,90,95,0.10); }
+.noapp { font-size: 12px; color: var(--warn); }
+.replay { display: none; margin-top: 14px; padding: 14px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
+.replay.on { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+.replay canvas { width: 240px; height: 240px; border-radius: 10px; background: rgba(255,255,255,0.03); }
+.replay .ctl { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+.replay input[type=range] { flex: 1; accent-color: var(--accent); }
+.replay .who { font-size: 13px; color: var(--text2); line-height: 1.8; }
+.replay .who i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+@media (max-width: 700px) { .replay.on { grid-template-columns: 1fr; } }
 .moments { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13.5px; }
 .moments li { padding: 6px 0 6px 52px; position: relative; color: var(--text2); border-top: 1px solid var(--line); }
 .moments li time { position: absolute; left: 0; top: 6px; font: 600 12px var(--display); color: var(--muted); }
@@ -220,7 +230,6 @@ details summary { cursor: pointer; color: var(--text2); font-size: 13px; margin-
   .logo small { display: none; }
   nav.main a { padding: 7px 8px; }
   .players { grid-template-columns: 1fr; }
-  .rank { grid-template-columns: 24px 90px 1fr 36px; }
   .mgrid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
@@ -319,7 +328,7 @@ async function home() {
     <div>
       <div class="kicker">Dota 2 &middot; for five friends</div>
       <h1>Play like a five-stack that <span class="grad">actually talks.</span></h1>
-      <p class="lead">A small overlay that shows your teammates' HP, ultimates, TPs and key items in real time, warns you when someone is ganked, and after every game tells each player how useful they really were to the team.</p>
+      <p class="lead">A small overlay that shows your teammates' HP, ultimates, TPs and key items in real time, warns you when someone is ganked, and after every game shows in plain words how each of you helped the team, and where it went wrong.</p>
       <div class="ctas">
         <a class="btn primary" id="dl" href="/download/cyberspyde-agent.exe">Download for Windows</a>
         <a class="btn" href="#/live">Team area</a>
@@ -472,13 +481,12 @@ function live() {
 }
 
 // ---------------------------------------------------------------- matches
-const gradeBadge = (g) => `<span class="grade ${esc(g)}" title="Grade ${esc(g)}">${esc(g)}</span>`;
 const dateStr = (ms) => ms ? new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
 async function matches() {
   if (!key) return needKey(matches);
   app.innerHTML = `<div class="wrap page"><div class="pagehead"><div><h2 class="display" style="margin:0">Matches</h2>
-    <div class="small muted">Every game where at least one of you ran the program. Reports appear about a minute after the game ends.</div></div></div>
+    <div class="small muted">Every game where at least one of you ran the program. The report shows up about a minute after the game, and replay facts a few minutes later.</div></div></div>
     <div id="mlist" class="mlist"><div class="glass empty">Loading...</div></div></div>`;
   let data;
   try { data = await api("/api/matches"); } catch (e) { if (e.code === 401) { forgetKey(); return; } $("mlist").innerHTML = `<div class="glass empty">Could not load matches.</div>`; return; }
@@ -489,21 +497,95 @@ async function matches() {
     const res = m.won === true ? `<div class="res w">VICTORY</div>` : m.won === false ? `<div class="res l">DEFEAT</div>` : `<div class="res">GAME</div>`;
     rows.push(`<div class="mrow glass" onclick="location.hash='#/match/${encodeURIComponent(m.match_id)}'">
       <div>${res}<div class="tiny muted">${mmss(m.duration)} &middot; ${esc(dateStr(m.started_ms))}</div></div>
-      <div class="heroes">${m.players.map(p => `<span class="hchip">${gradeBadge(p.grade)}<span><b>${esc(p.name)}</b> <span class="muted">${esc(p.hero_name)}</span></span></span>`).join("")}</div>
-      <div class="small text2" style="text-align:right">${m.mvp ? `Most useful<br><b style="color:var(--text)">${esc(m.mvp)}</b>` : ""}</div></div>`);
+      <div class="heroes">${m.players.map(p => `<span class="hchip" style="padding:4px 10px" title="${esc(p.low || "")}"><span><b>${esc(p.name)}</b> <span class="muted">${esc(p.hero_name)}</span></span>${p.fights ? `<span class="fchip ${p.low ? "bad" : ""}">fights ${esc(p.fights.replace(" of ", "/"))}</span>` : ""}</span>`).join("")}</div>
+      <div class="small text2" style="text-align:right">${m.enemies && m.enemies.length ? "vs " + esc(m.enemies.join(", ")) : ""}</div></div>`);
   }
   $("mlist").innerHTML = rows.join("") || `<div class="glass empty">No games recorded yet. Play one with the program running, and the report shows up here.</div>`;
 }
 
 // ---------------------------------------------------------------- match detail
-function ring(score, grade) {
-  const c = 2 * Math.PI * 27, f = Math.max(0, Math.min(100, score)) / 100;
-  const col = { S: "#35e0bd", A: "#7fdc6a", B: "#e6d35a", C: "#f29a4a", D: "#ff5a5f" }[grade] || "#35e0bd";
-  return `<div class="ring" title="Usefulness ${score} of 100"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>
-    <circle cx="32" cy="32" r="27" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c * f} ${c}"/></svg><b>${score}</b></div>`;
+function metric(label, value, cls = "") { return `<div class="m ${cls}"><b>${value}</b><span>${label}</span></div>`; }
+const SRC = { replay: "from the replay", measured: "measured", estimate: "estimate" };
+
+function factList(cards) {
+  if (!cards.length) return `<p class="small muted">No facts for this player.</p>`;
+  return `<ul class="facts">${cards.map(c => `<li class="${esc(c.tone)}"><span class="dot"></span><div>${esc(c.text)}
+    <div class="meta"><span class="tag">${esc(SRC[c.source] || c.source)}</span>${c.usual ? `<span class="tag ${esc(c.trend || "")}">${esc(c.usual)}${c.trend && c.trend !== "same" ? " &middot; " + esc(c.trend) + " than usual" : ""}</span>` : ""}</div></div></li>`).join("")}</ul>`;
 }
 
-function metric(label, value, cls = "") { return `<div class="m ${cls}"><b>${value}</b><span>${label}</span></div>`; }
+function odNote(r) {
+  const od = r.od || {};
+  const map = { done: ["ok", "replay facts in"], parsing: ["warn", "waiting for the replay"], waiting: ["warn", "replay facts coming"], unavailable: ["bad", "no replay facts"], off: ["", "replay facts off"] };
+  const [cls, text] = map[od.state] || ["", "measured only"];
+  return `<span class="pill ${cls}" title="${esc(od.note || "")}">${esc(text)}</span>`;
+}
+
+// ---- fight replay: positions are fetched only when a fight is opened.
+const COLORS = ["#35e0bd", "#7c8cff", "#ffb547", "#ff6fae", "#7fdc6a", "#5ad0ff", "#e8e26a", "#c39bff", "#ff8a65", "#9ad6c8"];
+let replayState = null;
+
+async function openReplay(r, i) {
+  const f = r.fights[i];
+  const box = $("replay");
+  if (!box) return;
+  box.classList.add("on");
+  box.innerHTML = `<div class="small muted">Loading the fight...</div>`;
+  if (replayState) cancelAnimationFrame(replayState.raf);
+  let data;
+  try { data = await api(`/api/matches/${encodeURIComponent(r.match_id)}/replay?from=${f.start - 15}&to=${f.end + 6}`); } catch (e) { box.innerHTML = `<div class="small muted">Replay data is not available.</div>`; return; }
+  const ps = data.players.filter(p => p.pts.length);
+  if (!ps.length) { box.innerHTML = `<div class="small muted">Nobody running the app was recorded around this fight.</div>`; return; }
+  box.innerHTML = `<canvas id="rc" width="480" height="480"></canvas><div>
+    <b>${esc(f.clock)} &middot; ${esc(f.result)}</b> <span class="small muted">kills ${f.our_kills}, deaths ${f.our_deaths}</span>
+    <div class="ctl"><button class="btn small" id="rplay">Pause</button><input type="range" id="rpos" min="${data.from}" max="${data.to}" step="0.1" value="${data.from}"><span class="small" id="rclock"></span></div>
+    <div class="who">${ps.map((p, k) => `<span><i style="background:${COLORS[k % COLORS.length]}"></i>${esc(p.name)} <span class="muted">${esc(p.hero)}</span></span>`).join("<br>")}</div>
+    <div class="tiny muted" style="margin-top:8px">Only players running the app have positions. Ring = health, cross = dead, shaded circle = where the fight was.</div></div>`;
+  const cv = $("rc"), g = cv.getContext("2d");
+  const S = 480, sx = (x) => S / 2 + x / 8200 * (S / 2 - 8), sy = (y) => S / 2 - y / 8200 * (S / 2 - 8);
+  const at = (pts, t) => {
+    let a = pts[0], b = pts[pts.length - 1];
+    for (let k = 0; k < pts.length; k++) { if (pts[k][0] <= t) a = pts[k]; if (pts[k][0] >= t) { b = pts[k]; break; } }
+    const span = b[0] - a[0], u = span > 0 ? (t - a[0]) / span : 0;
+    return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u, u < 0.5 ? a[4] : b[4]];
+  };
+  const st = { t: data.from, playing: true, last: 0, raf: 0 };
+  replayState = st;
+  const draw = () => {
+    g.clearRect(0, 0, S, S);
+    g.strokeStyle = "rgba(124,140,255,0.18)"; g.lineWidth = 18; g.lineCap = "round";
+    g.beginPath(); g.moveTo(24, S - 24); g.lineTo(S - 24, 24); g.stroke();
+    g.fillStyle = "rgba(63,207,110,0.18)"; g.beginPath(); g.arc(30, S - 30, 18, 0, 7); g.fill();
+    g.fillStyle = "rgba(255,90,95,0.18)"; g.beginPath(); g.arc(S - 30, 30, 18, 0, 7); g.fill();
+    if (f.x || f.y) { g.fillStyle = "rgba(255,255,255,0.06)"; g.beginPath(); g.arc(sx(f.x), sy(f.y), 3000 / 8200 * (S / 2), 0, 7); g.fill(); }
+    ps.forEach((p, k) => {
+      const [x, y, hp, alive] = at(p.pts, st.t), cx = sx(x), cy = sy(y), c = COLORS[k % COLORS.length];
+      if (!alive) {
+        g.strokeStyle = c; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 7, cy - 7); g.lineTo(cx + 7, cy + 7); g.moveTo(cx + 7, cy - 7); g.lineTo(cx - 7, cy + 7); g.stroke();
+        return;
+      }
+      g.strokeStyle = "rgba(255,255,255,0.15)"; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, 13, 0, 7); g.stroke();
+      g.strokeStyle = hp < 0.3 ? "#ff5a5f" : "#3fcf6e"; g.beginPath(); g.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + hp * 2 * Math.PI); g.stroke();
+      g.fillStyle = c; g.beginPath(); g.arc(cx, cy, 8, 0, 7); g.fill();
+      g.fillStyle = "#e9eef5"; g.font = "600 15px Inter, sans-serif"; g.fillText(p.name.slice(0, 10), cx + 16, cy + 5);
+    });
+    $("rclock").textContent = mmss(Math.floor(st.t));
+    $("rpos").value = st.t;
+  };
+  const tick = (now) => {
+    if (!$("rc")) return;
+    if (st.playing) {
+      if (st.last) st.t += (now - st.last) / 1000 * 3; // three times real speed
+      if (st.t >= data.to) { st.t = data.to; st.playing = false; $("rplay").textContent = "Play"; }
+    }
+    st.last = now;
+    draw();
+    st.raf = requestAnimationFrame(tick);
+  };
+  $("rplay").onclick = () => { if (st.t >= data.to) st.t = data.from; st.playing = !st.playing; st.last = 0; $("rplay").textContent = st.playing ? "Pause" : "Play"; };
+  $("rpos").oninput = (e) => { st.t = +e.target.value; st.playing = false; $("rplay").textContent = "Play"; };
+  st.raf = requestAnimationFrame(tick);
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
 
 function fightStrip(r, W) {
   const H = 54, pad = 8, dur = Math.max(r.duration, 60);
@@ -518,7 +600,7 @@ function fightStrip(r, W) {
   }).join("");
   return `<div class="chart" id="fchart"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
     <rect x="${pad}" y="17" width="${W - 2 * pad}" height="4" rx="2" fill="rgba(255,255,255,0.06)"/>${ticks}${marks}</svg><div class="tip" id="ftip"></div></div>
-    <div class="legend"><span><i style="background:var(--good)"></i>won</span><span><i style="background:var(--bad)"></i>lost</span><span><i style="background:var(--warn)"></i>traded</span></div>`;
+    <div class="legend"><span><i style="background:var(--good)"></i>won</span><span><i style="background:var(--bad)"></i>lost</span><span><i style="background:var(--warn)"></i>traded</span><span class="muted">click a fight to replay it</span></div>`;
 }
 
 function spreadChart(r, W) {
@@ -554,6 +636,7 @@ function wireCharts(r, W) {
         tip.style.left = `${b.left - p.left + b.width / 2}px`; tip.style.top = `${b.top - p.top}px`; tip.style.display = "block";
       });
       el.addEventListener("mouseleave", () => tip.style.display = "none");
+      el.addEventListener("click", () => openReplay(r, +el.dataset.i));
     });
   }
   const sc = $("schart");
@@ -591,7 +674,7 @@ function aiBlock(r) {
     body = `<div class="body muted">${s.startsWith("failed") ? "The review could not be written: " + esc(s.slice(8)) : "No review yet."}</div>`;
   }
   return `<div class="ai glass"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
-    <h2 style="margin:0;font-size:18px">AI coach</h2><button class="btn small" id="rereview">Write again</button></div>${body}</div>`;
+    <h2 style="margin:0;font-size:18px">What we learn from this game</h2><button class="btn small" id="rereview">Write again</button></div>${body}</div>`;
 }
 
 async function matchPage(id) {
@@ -604,49 +687,33 @@ async function matchPage(id) {
   }
   const res = r.won === true ? `<span class="res w">VICTORY</span>` : r.won === false ? `<span class="res l">DEFEAT</span>` : `<span class="res">GAME</span>`;
   const fw = r.fights.filter(f => f.result === "won").length, fl = r.fights.filter(f => f.result === "lost").length;
-  const rank = r.players.map((p, i) => `<div class="rank"><span class="muted display">${i + 1}</span><span><b>${esc(p.name)}</b><br><span class="tiny muted">${esc(p.title)}</span></span>
-    <div class="rbar"><i style="width:${p.usefulness}%"></i></div><span class="v">${p.usefulness}</span></div>`).join("");
-  const cards = r.players.map(p => {
-    const m = p.metrics;
-    const pct = (a, b) => b ? `${a}/${b}` : "-";
-    return `<div class="prep glass">
-      <div class="top">${ring(p.usefulness, p.grade)}<div style="min-width:0"><div class="title">${esc(p.title)}</div>
-        <div class="display" style="font-size:20px;font-weight:600">${esc(p.name)}</div>
-        <div class="small muted">${esc(p.hero_name)} &middot; ${p.k}/${p.d}/${p.a} &middot; grade ${esc(p.grade)}</div></div></div>
-      <div class="mgrid">
-        ${metric("fights joined", pct(m.fights_present, m.fights_total), m.fights_total && m.fights_present / m.fights_total < 0.6 ? "badv" : "")}
-        ${metric("help calls answered", pct(m.calls_answered, m.calls_total), m.calls_total && m.calls_answered < m.calls_total ? "badv" : "")}
-        ${metric("died alone", m.deaths_alone, m.deaths_alone ? "badv" : "goodv")}
-        ${metric("skipped fights, TP ready", m.fights_missed_tp_ready, m.fights_missed_tp_ready ? "badv" : "goodv")}
-        ${metric("min sitting on 2k+ gold", Math.round(m.hoard_s / 60), m.hoard_s >= 180 ? "badv" : "")}
-        ${metric("time far from team", Math.round(m.alone_pct) + "%", m.alone_pct > 40 ? "badv" : "")}
-        ${metric("died with items unused", m.deaths_with_items_ready, m.deaths_with_items_ready ? "badv" : "")}
-        ${metric("observers placed", m.obs_placed)}
-        ${metric("gold lost dying", m.gold_lost)}
-      </div>
-      ${p.worst.length ? `<h3 style="margin-top:14px;font-size:14px;color:var(--bad)">Worst moments</h3><ul class="moments bad">${p.worst.map(w => `<li><time>${esc(w.clock)}</time>${esc(w.text)}</li>`).join("")}</ul>` : `<p class="small" style="color:var(--good)">No bad moments found. Suspicious.</p>`}
+  const cards = r.players.map(p => `<div class="prep glass">
+      <div class="title">${esc(p.title)}</div>
+      <div class="display" style="font-size:21px;font-weight:600">${esc(p.name)}</div>
+      <div class="small muted">${esc(p.hero_name)} &middot; ${p.k}/${p.d}/${p.a}${p.app ? "" : ` &middot; <span class="noapp">no app: replay facts only</span>`}</div>
+      ${factList(p.cards || [])}
+      ${p.worst.length ? `<h3 style="margin-top:14px;font-size:14px;color:var(--bad)">Worst moments</h3><ul class="moments bad">${p.worst.map(w => `<li><time>${esc(w.clock)}</time>${esc(w.text)}</li>`).join("")}</ul>` : ""}
       ${p.best.length ? `<h3 style="margin-top:14px;font-size:14px;color:var(--good)">Best moments</h3><ul class="moments good">${p.best.map(w => `<li><time>${esc(w.clock)}</time>${esc(w.text)}</li>`).join("")}</ul>` : ""}
-    </div>`;
-  }).join("");
-  const table = `<details><summary>Show as table</summary><table class="tbl"><tr><th>Player</th><th>Score</th><th>Fights</th><th>Calls</th><th>Died alone</th><th>Skipped w/ TP</th><th>Hoard min</th></tr>
-    ${r.players.map(p => `<tr><td>${esc(p.name)}</td><td>${p.usefulness}</td><td>${p.metrics.fights_present}/${p.metrics.fights_total}</td><td>${p.metrics.calls_answered}/${p.metrics.calls_total}</td><td>${p.metrics.deaths_alone}</td><td>${p.metrics.fights_missed_tp_ready}</td><td>${Math.round(p.metrics.hoard_s / 60)}</td></tr>`).join("")}</table></details>`;
+    </div>`).join("");
+  const killers = (r.killers || []).slice(0, 4).map(([h, n]) => `<div class="m"><b>${n}</b><span>deaths to ${esc(h)}</span></div>`).join("");
   app.innerHTML = `<div class="wrap page">
     <a href="#/matches" class="small">&larr; All matches</a>
     <div class="mhead glass" style="margin-top:12px"><div><div class="big">${res}</div><div class="text2">${esc(r.summary)}</div>
-      <div class="tiny muted" style="margin-top:4px">Match ${esc(r.match_id)} &middot; ${esc(dateStr(r.started_ms))}</div></div>
+      <div class="tiny muted" style="margin-top:6px">Match ${esc(r.match_id)} &middot; ${esc(dateStr(r.started_ms))} &middot; ${odNote(r)}</div>
+      ${r.enemies && r.enemies.length ? `<div class="small text2" style="margin-top:6px">Against ${esc(r.enemies.join(", "))}</div>` : ""}</div>
       <div class="stats"><div class="stat"><b>${mmss(r.duration)}</b><span>duration</span></div><div class="stat"><b>${r.fights.length}</b><span>team fights</span></div>
       <div class="stat"><b style="color:var(--good)">${fw}</b><span>won</span></div><div class="stat"><b style="color:var(--bad)">${fl}</b><span>lost</span></div></div></div>
     ${aiBlock(r)}
+    <div class="panel glass" style="margin-bottom:16px"><h2>Team fights <span class="small muted">${r.fights_source === "replay" ? "(from the replay)" : "(measured)"}</span></h2><div id="fwrap"></div><div class="replay" id="replay"></div></div>
     <div class="two">
-      <div class="panel glass"><h2>Usefulness to the team</h2>${rank}<p class="tiny muted" style="margin:10px 0 0">Score out of 100: fights joined, help calls answered, deaths alone, fights skipped with TP ready, gold left unspent, wards. KDA barely counts.</p>${table}</div>
-      <div class="panel glass"><h2>Fights</h2><div id="fwrap"></div><h2 style="margin-top:22px">How spread out you were</h2><div id="swrap"></div></div>
+      <div class="panel glass"><h2>How spread out you were</h2><div id="swrap"></div></div>
+      <div class="panel glass"><h2>Who killed us</h2>${killers ? `<div class="mgrid">${killers}</div>` : `<p class="small muted">Comes with the replay facts.</p>`}</div>
     </div>
     <div class="players">${cards}</div></div>`;
-  // Charts are drawn at their real pixel width so text is never stretched.
   const draw = () => {
-    const fw = $("fwrap"), sw = $("swrap");
-    if (!fw || !sw) return;
-    fw.innerHTML = fightStrip(r, Math.max(260, fw.clientWidth));
+    const fwp = $("fwrap"), sw = $("swrap");
+    if (!fwp || !sw) return;
+    fwp.innerHTML = fightStrip(r, Math.max(260, fwp.clientWidth));
     sw.innerHTML = spreadChart(r, Math.max(260, sw.clientWidth));
     wireCharts(r, Math.max(260, sw.clientWidth));
   };
@@ -654,7 +721,7 @@ async function matchPage(id) {
   let rt;
   const onResize = () => { clearTimeout(rt); rt = setTimeout(draw, 120); };
   window.addEventListener("resize", onResize);
-  cleanup = () => window.removeEventListener("resize", onResize);
+  cleanup = () => { window.removeEventListener("resize", onResize); if (replayState) cancelAnimationFrame(replayState.raf); };
   $("rereview").onclick = async () => {
     $("rereview").disabled = true; $("rereview").textContent = "Writing...";
     try { await api(`/api/matches/${encodeURIComponent(id)}/review`, { method: "POST" }); } catch (e) {}
@@ -672,38 +739,32 @@ async function matchPage(id) {
 }
 
 // ---------------------------------------------------------------- players
-function spark(vals) {
-  if (vals.length < 2) return `<div class="tiny muted">Trend after two games.</div>`;
-  const W = 300, H = 40, x = (i) => 4 + i / (vals.length - 1) * (W - 8), y = (v) => 4 + (1 - v / 100) * (H - 8);
+function spark(vals, upGood) {
+  if (vals.length < 2) return `<span class="tiny muted">trend after 2 games</span>`;
+  const W = 120, H = 28, max = Math.max(...vals, 1), min = Math.min(...vals, 0);
+  const x = (i) => 3 + i / (vals.length - 1) * (W - 6), y = (v) => 3 + (1 - (v - min) / (max - min || 1)) * (H - 6);
   const d = vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join("");
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Usefulness per game, oldest first">
-    <line x1="0" x2="${W}" y1="${y(50)}" y2="${y(50)}" stroke="rgba(160,190,230,0.12)" stroke-dasharray="3 4"/>
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-    <circle cx="${x(vals.length - 1)}" cy="${y(vals[vals.length - 1])}" r="3.5" fill="var(--accent)"/></svg>`;
+  const last = vals[vals.length - 1], prev = vals.slice(0, -1).reduce((a, b) => a + b, 0) / (vals.length - 1);
+  const better = (last > prev) === upGood, same = Math.abs(last - prev) < Math.max(0.5, Math.abs(prev) * 0.15);
+  const c = same ? "var(--muted)" : better ? "var(--good)" : "var(--bad)";
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Per game, oldest first"><path d="${d}" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x(vals.length - 1)}" cy="${y(last)}" r="3" fill="${c}"/></svg>`;
 }
 
 async function players() {
   if (!key) return needKey(players);
   app.innerHTML = `<div class="wrap page"><div class="pagehead"><div><h2 class="display" style="margin:0">Players</h2>
-    <div class="small muted">Everyone across all recorded games.</div></div></div><div id="plist" class="players"><div class="glass empty">Loading...</div></div></div>`;
+    <div class="small muted">Each of you across all recorded games. Line colour = the last game compared with the ones before (green better, red worse).</div></div></div><div id="plist" class="players"><div class="glass empty">Loading...</div></div></div>`;
   let list;
   try { list = await api("/api/players"); } catch (e) { if (e.code === 401) { forgetKey(); return; } $("plist").innerHTML = `<div class="glass empty">Could not load players.</div>`; return; }
   const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0];
-  $("plist").innerHTML = list.map((p, i) => {
+  const fmt = (f) => f.label.includes("%") ? Math.round(f.avg) + "%" : f.avg;
+  $("plist").innerHTML = list.map(p => {
     const t = top(p.titles), h = top(p.heroes);
-    const g = p.avg_usefulness >= 85 ? "S" : p.avg_usefulness >= 72 ? "A" : p.avg_usefulness >= 58 ? "B" : p.avg_usefulness >= 45 ? "C" : "D";
-    return `<div class="prep glass"><div class="top">${ring(Math.round(p.avg_usefulness), g)}<div><div class="title">${t ? esc(t[0]) : ""}</div>
-      <div class="display" style="font-size:20px;font-weight:600">${esc(p.name)}</div>
-      <div class="small muted">${p.games} games &middot; ${p.wins} wins${h ? " &middot; most played " + esc(h[0]) : ""}</div></div></div>
-      ${spark(p.trend)}
-      <div class="mgrid">
-        ${metric("fights joined", p.fights_total ? Math.round(p.fights_present / p.fights_total * 100) + "%" : "-")}
-        ${metric("help calls answered", p.calls_total ? Math.round(p.calls_answered / p.calls_total * 100) + "%" : "-")}
-        ${metric("deaths alone / game", (p.deaths_alone / p.games).toFixed(1), p.deaths_alone / p.games >= 1.5 ? "badv" : "")}
-        ${metric("skipped fights, TP ready", p.fights_missed_tp_ready, p.fights_missed_tp_ready / p.games >= 1 ? "badv" : "")}
-        ${metric("min hoarding / game", Math.round(p.hoard_minutes / p.games))}
-        ${metric("best game", p.best_usefulness, "goodv")}
-      </div></div>`;
+    return `<div class="prep glass"><div class="title">${t ? esc(t[0]) : ""}</div>
+      <div class="display" style="font-size:21px;font-weight:600">${esc(p.name)}</div>
+      <div class="small muted">${p.games} games &middot; ${p.wins} wins${h ? " &middot; most played " + esc(h[0]) : ""}</div>
+      <table class="tbl" style="margin-top:10px">${p.facts.map(f => `<tr><td>${esc(f.label)}</td><td style="text-align:right;white-space:nowrap"><b>${fmt(f)}</b></td><td style="width:126px">${spark(f.values, f.up_good)}</td></tr>`).join("")}</table>
+    </div>`;
   }).join("") || `<div class="glass empty" style="grid-column:1/-1">No games recorded yet.</div>`;
 }
 
