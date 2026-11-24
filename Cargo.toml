@@ -1,9 +1,12 @@
 [workspace]
 resolver = "2"
 members = ["crates/protocol", "crates/relay", "crates/agent", "crates/sim"]
+# What `cargo build` makes by default: the player program and the server. The
+# test tool (crates/sim) builds on request with `-p sim`.
+default-members = ["crates/protocol", "crates/relay", "crates/agent"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [workspace.dependencies]

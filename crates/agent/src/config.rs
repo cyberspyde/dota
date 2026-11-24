@@ -42,6 +42,24 @@ pub struct OverlayConfig {
     pub show_build: bool,
     /// Game-plan text and rotating tips under the next item (more reading).
     pub show_tips: bool,
+    /// Look: "glass", "midnight", "ember", "neon" or "frost".
+    pub theme: String,
+    /// "detailed" (two lines per player) or "compact" (one line).
+    pub density: String,
+    /// Team summary line (ultimates / TPs ready, who is dead).
+    pub show_summary: bool,
+    /// Latest tip from the team board.
+    pub show_notes: bool,
+}
+
+impl OverlayConfig {
+    pub fn compact(&self) -> bool {
+        self.density == "compact"
+    }
+    /// Overlay width in logical pixels at scale 1.0.
+    pub fn width(&self) -> f32 {
+        if self.compact() { 250.0 } else { 300.0 }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -57,12 +75,15 @@ pub struct HotkeyConfig {
     pub edit_mode: String,
     /// Hides / shows the overlay.
     pub toggle: String,
+    /// Opens the settings menu.
+    pub menu: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            name: std::env::var("USERNAME").unwrap_or_else(|_| "player".into()),
+            // Empty on purpose: setup asks for the name the team knows you by.
+            name: String::new(),
             relay: DEFAULT_RELAY.into(),
             key: String::new(),
             gsi_port: 4646,
@@ -86,6 +107,10 @@ impl Default for OverlayConfig {
             show_radar: false,
             show_build: true,
             show_tips: false,
+            theme: "glass".into(),
+            density: "detailed".into(),
+            show_summary: true,
+            show_notes: true,
         }
     }
 }
@@ -103,6 +128,7 @@ impl Default for HotkeyConfig {
             roshan: "Numpad6".into(),
             edit_mode: "Numpad0".into(),
             toggle: "NumpadDecimal".into(),
+            menu: "NumpadMultiply".into(),
         }
     }
 }
@@ -141,8 +167,8 @@ pub fn load_or_create(path: &Path) -> Result<(Config, bool), String> {
 pub fn save(path: &Path, cfg: &Config) -> Result<(), String> {
     let body = toml::to_string_pretty(cfg).map_err(|e| e.to_string())?;
     let text = format!(
-        "# cyberspyde-agent settings. Restart the agent after editing.\n\
-         # Easiest way to change name, host, key and look: run the agent with --setup\n\
+        "# cyberspyde-agent settings. Easiest way to change them: the in-game menu (Numpad *).\n\
+         # Editing this file by hand needs a restart of the agent.\n\
          # Hotkey names: Numpad0-9, F1-F12, KeyA, Digit1, with modifiers like \"ctrl+shift+KeyH\".\n\n{body}"
     );
     std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))

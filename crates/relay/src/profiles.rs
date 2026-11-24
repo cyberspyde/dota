@@ -56,6 +56,22 @@ pub fn load(path: &Path) -> Result<Vec<(Vec<String>, Coaching)>, String> {
         .collect())
 }
 
+/// The display name for match history: the first alias of the matching
+/// profile ("azizbek" -> "Azizbek"), so one person is one row across games.
+pub fn canonical(path: Option<&Path>, name: &str) -> String {
+    let fallback = name.trim().to_string();
+    let Some(path) = path else { return fallback };
+    let Ok(text) = std::fs::read_to_string(path) else { return fallback };
+    let Ok(file) = toml::from_str::<File>(&text) else { return fallback };
+    let key = name.trim().to_lowercase();
+    file.player
+        .iter()
+        .find(|p| p.names.iter().any(|n| n.trim().to_lowercase() == key))
+        .and_then(|p| p.names.first())
+        .map(|n| n.trim().to_string())
+        .unwrap_or(fallback)
+}
+
 /// Coaching for `name`, re-reading the file so edits apply on the next connect.
 pub fn for_player(path: Option<&Path>, name: &str) -> Coaching {
     let Some(path) = path else { return Coaching::default() };

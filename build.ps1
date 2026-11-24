@@ -12,13 +12,16 @@ Set-Location $PSScriptRoot
 if ($Test) { cargo test --workspace; if ($LASTEXITCODE) { exit $LASTEXITCODE } }
 
 $profile = if ($Debug) { "debug" } else { "release" }
-$flag = if ($Debug) { @() } else { @("--release") }
-cargo build --workspace @flag
+# @(...) keeps it an array: a one-item array returned from `if` collapses into a string.
+$flag = @(if (-not $Debug) { "--release" })
+cargo build @flag
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 New-Item -ItemType Directory -Force dist | Out-Null
-foreach ($bin in "cyberspyde-agent", "cyberspyde-relay", "cyberspyde-sim") {
+foreach ($bin in "cyberspyde-agent", "cyberspyde-relay") {
     Copy-Item "target\$profile\$bin.exe" "dist\$bin.exe" -Force
 }
 Copy-Item "examples\builds.override.example.json" "dist\builds.override.example.json" -Force
 Get-ChildItem dist | Format-Table Name, Length
+# The download page reads this to offer updates.
+(Get-Content Cargo.toml | Select-String '^version = "(.+)"').Matches[0].Groups[1].Value | Set-Content -Encoding ascii dist\version.txt

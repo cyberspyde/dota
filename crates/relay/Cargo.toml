@@ -13,8 +13,10 @@ protocol.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml = "0.8"
-tokio.workspace = true
+tokio = { workspace = true, features = ["fs"] }
 futures-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query", "json"] }
+# Local HTTP to Ollama only (no TLS needed).
+reqwest = { version = "0.12", default-features = false, features = ["json"] }

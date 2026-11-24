@@ -75,6 +75,18 @@ pub fn parse(v: &Value, token: &str) -> Parsed {
         clock: map["clock_time"].as_f64().unwrap_or(0.0) as i32,
         game_state: s(&map["game_state"]),
         daytime: b(&map["daytime"]),
+        match_id: match &map["matchid"] {
+            Value::String(s) => s.clone(),
+            Value::Number(n) => n.to_string(),
+            _ => String::new(),
+        },
+        win_team: match s(&map["win_team"]).as_str() {
+            "none" | "" => String::new(),
+            w => w.to_string(),
+        },
+        gold_reliable: u(&player["gold_reliable"]),
+        gold_unreliable: u(&player["gold_unreliable"]),
+        kill_streak: u(&player["kill_streak"]),
         ..Default::default()
     };
     if let (Some(x), Some(y)) = (hero["xpos"].as_f64(), hero["ypos"].as_f64()) {
@@ -92,6 +104,11 @@ pub fn parse(v: &Value, token: &str) -> Parsed {
     for i in 6..9 {
         if let Some(it) = item(&items[format!("slot{i}")]) {
             st.backpack.push(it);
+        }
+    }
+    for i in 0..6 {
+        if let Some(it) = item(&items[format!("stash{i}")]) {
+            st.stash.push(it);
         }
     }
     st.tp = item(&items["teleport0"]);
@@ -174,6 +191,8 @@ mod tests {
         assert_eq!(st.abilities.len(), 4, "talent entries are filtered");
         assert_eq!(st.ultimate().unwrap().cooldown, 42);
         assert_eq!(st.clock, 845);
+        assert_eq!(st.match_id, "1");
+        assert_eq!(st.win_team, "");
     }
 
     #[test]

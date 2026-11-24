@@ -46,6 +46,14 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
         (1004, "Otabek", hero("lina", 12, -300.0, 200.0, &["arcane_boots", "cyclone"])),
     ];
     mates[1].2.items[2].charges = Some(2);
+    // CYBERSPYDE_DEMO_NAMES="A,B,C,D" swaps in other names (public screenshots).
+    let custom: Vec<&'static str> = std::env::var("CYBERSPYDE_DEMO_NAMES")
+        .ok()
+        .map(|v| v.split(',').map(|s| &*Box::leak(s.trim().to_string().into_boxed_str())).collect())
+        .unwrap_or_default();
+    for (m, n) in mates.iter_mut().zip(custom) {
+        m.1 = n;
+    }
     {
         let mut t = team.lock().unwrap();
         for (id, name, _) in &mates {

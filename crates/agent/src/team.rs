@@ -192,6 +192,18 @@ pub struct Team {
     pub notes: VecDeque<NoteEv>,
     /// This player's coaching switches from the host (never shown as such).
     pub coaching: Coaching,
+    /// Newest agent version the server offers for download.
+    pub latest_agent: String,
+}
+
+impl Team {
+    /// True when the server offers a newer agent than this one.
+    pub fn update_available(&self) -> bool {
+        fn parse(v: &str) -> Vec<u32> {
+            v.trim().split('.').map(|p| p.parse().unwrap_or(0)).collect()
+        }
+        !self.latest_agent.is_empty() && parse(&self.latest_agent) > parse(protocol::AGENT_VERSION)
+    }
 }
 
 impl Team {
@@ -221,9 +233,10 @@ impl Team {
     pub fn apply(&mut self, msg: ServerMsg) {
         let now = Instant::now();
         match msg {
-            ServerMsg::Welcome { you, members, coaching, .. } => {
+            ServerMsg::Welcome { you, members, coaching, latest_agent, .. } => {
                 self.my_id = Some(you);
                 self.coaching = coaching;
+                self.latest_agent = latest_agent;
                 self.connected = true;
                 self.last_error = None;
                 self.mates.clear();

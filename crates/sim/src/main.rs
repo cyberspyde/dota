@@ -4,6 +4,10 @@
 //! so a single clock times both ends exactly.
 //!
 //! cyberspyde-sim --relay ws://127.0.0.1:4747/ws --key <key> [--players 5] [--hz 20] [--secs 10]
+//! cyberspyde-sim --relay ... --key ... --script [--names a,b,c,d,e] [--step-ms 5]
+//!   plays a scripted 40-minute match for testing the post-game report.
+
+mod script;
 
 use futures_util::{SinkExt, StreamExt};
 use protocol::{ClientMsg, PlayerState, Role, ServerMsg, PROTOCOL_VERSION};
@@ -20,14 +24,32 @@ struct Args {
     players: usize,
     hz: u64,
     secs: u64,
+    script: bool,
+    names: Vec<String>,
+    step_ms: u64,
 }
 
 fn args() -> Args {
-    let mut a = Args { relay: "ws://127.0.0.1:4747/ws".into(), key: String::new(), players: 5, hz: 20, secs: 10 };
+    let mut a = Args {
+        relay: "ws://127.0.0.1:4747/ws".into(),
+        key: String::new(),
+        players: 5,
+        hz: 20,
+        secs: 10,
+        script: false,
+        names: (1..=5).map(|i| format!("Player{i}")).collect(),
+        step_ms: 5,
+    };
     let mut it = std::env::args().skip(1);
     while let Some(x) = it.next() {
+        if x == "--script" {
+            a.script = true;
+            continue;
+        }
         let v = it.next().unwrap_or_default();
         match x.as_str() {
+            "--names" => a.names = v.split(',').map(|s| s.trim().to_string()).collect(),
+            "--step-ms" => a.step_ms = v.parse().expect("--step-ms"),
             "--relay" => a.relay = v,
             "--key" => a.key = v,
             "--players" => a.players = v.parse().expect("--players"),
@@ -41,9 +63,54 @@ fn args() -> Args {
 
 type Sent = Arc<Mutex<HashMap<(u32, u32), Instant>>>;
 
+async fn play_script(a: &Args) {
+    assert!(a.names.len() >= 5, "--names needs 5 names");
+    let mut conns = Vec::new();
+    for name in a.names.iter().take(5) {
+        let (ws, _) = connect_async_with_config(a.relay.as_str(), None, true).await.expect("connect");
+        let (mut tx, mut rx) = ws.split();
+        let hello = ClientMsg::Hello { key: a.key.clone(), name: name.clone(), role: Role::Player, version: PROTOCOL_VERSION };
+        tx.send(Message::Text(serde_json::to_string(&hello).unwrap().into())).await.unwrap();
+        // Drain incoming frames so the relay never sees us as slow.
+        tokio::spawn(async move {
+            while let Some(Ok(m)) = rx.next().await {
+                if let Message::Text(t) = m {
+                    if let Ok(ServerMsg::Error { message }) = serde_json::from_str::<ServerMsg>(t.as_str()) {
+                        eprintln!("relay error: {message}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+        });
+        conns.push(tx);
+    }
+    let send = |m: &ClientMsg| Message::Text(serde_json::to_string(m).unwrap().into());
+    let calls = script::callouts();
+    for t in 0..=script::LENGTH + 3 {
+        for (p, tx) in conns.iter_mut().enumerate() {
+            let _ = tx.send(send(&ClientMsg::State { state: script::state(p, t) })).await;
+        }
+        for (ct, p, kind, x, y) in &calls {
+            if *ct == t {
+                let _ = conns[*p].send(send(&ClientMsg::Callout { kind: *kind, x: *x, y: *y })).await;
+            }
+        }
+        if t % 300 == 0 {
+            println!("game clock {}:{:02}", t / 60, t % 60);
+        }
+        tokio::time::sleep(Duration::from_millis(a.step_ms)).await;
+    }
+    println!("post-game sent; the relay writes the report about 45 s later");
+    tokio::time::sleep(Duration::from_secs(2)).await;
+}
+
 #[tokio::main]
 async fn main() {
     let a = args();
+    if a.script {
+        play_script(&a).await;
+        return;
+    }
     let sent: Sent = Arc::new(Mutex::new(HashMap::new()));
     let samples = Arc::new(Mutex::new(Vec::<f64>::new()));
     let start = Instant::now();

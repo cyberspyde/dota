@@ -79,7 +79,24 @@ pub struct PlayerState {
     pub clock: i32,
     pub game_state: String,
     pub daytime: bool,
+    /// Dota's match id; every teammate reports the same one, which is how the
+    /// relay groups a game for the post-game report.
+    pub match_id: String,
+    /// "radiant" / "dire" once the game is decided, else empty.
+    pub win_team: String,
+    /// Unreliable gold is what a death costs you.
+    pub gold_reliable: u32,
+    pub gold_unreliable: u32,
+    pub kill_streak: u32,
+    pub stash: Vec<Item>,
 }
+
+/// Agent build version, shown on the site and used for update checks.
+pub const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const GAME_IN_PROGRESS: &str = "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS";
+pub const GAME_PRE_GAME: &str = "DOTA_GAMERULES_STATE_PRE_GAME";
+pub const GAME_POST_GAME: &str = "DOTA_GAMERULES_STATE_POST_GAME";
 
 impl PlayerState {
     pub fn hp_frac(&self) -> f32 {
@@ -263,6 +280,9 @@ pub enum ServerMsg {
         /// This player's own coaching switches (empty when the host set none).
         #[serde(default)]
         coaching: Coaching,
+        /// Newest agent on the download page, e.g. "0.2.0" (empty if unknown).
+        #[serde(default)]
+        latest_agent: String,
     },
     Joined {
         member: MemberInfo,

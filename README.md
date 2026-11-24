@@ -7,15 +7,31 @@ A team coordination tool for a 5-stack. Each player shares **their own** game st
 - **A radar** showing where everyone is, with a pulsing ring on anyone taking damage.
 - **Callouts on hotkeys**: help, group up, retreat, careful, on my way, Roshan.
 - **A build helper for your hero**: next item and gold still needed, skill-order reminders, game-plan tips. It comes from the old CYBERSPYDE build database, plus builds your pro friend writes **once** instead of explaining them every game.
-- **A team board** web page (for a second monitor or a phone) where anyone can send tips to one player or the whole team.
+- **A team summary line**: how many ultimates and TPs are ready right now, who is dead, observer wards on the team.
+- **An in-game menu** (Numpad *): name, key, server, five themes (Glass, Midnight, Ember, Neon, Frost), size, detailed or compact rows, what to show, and every hotkey.
+- **The team site** at [dota.cyberspyde.uz](https://dota.cyberspyde.uz): download, live view of everyone, match history, and a **post-game report** for every game.
 
-| In a fight (your ult on cooldown) | A teammate getting ganked |
+![Overlay](docs/screenshots/overlay.png)
+
+A real capture of `cyberspyde-agent --demo` (placeholder names). Each player has two lines: status dot (green ok, amber low, red under attack), name, hero and level, `ULT` (green ready, grey with seconds left), `TP` (green ready, grey cooldown, red none); then HP with a thin mana line, observer wards carried (`W2`) and up to three fight-changing items. A dead player shows the respawn time and whether buyback is possible.
+
+## Post-game report
+
+Dota already shows damage, KDA and net worth, so the report measures what it can't: how each player behaved **as part of the team**. The relay records one sample per player per game second (positions, HP, gold, cooldowns, callouts) and analyses the game when it ends:
+
+| Measure | How |
 |---|---|
-| ![Overlay](docs/screenshots/overlay.png) | ![Gank alert](docs/screenshots/overlay-gank-alert.png) |
+| Team fights joined / skipped | Fights are found from burst damage near allies and deaths; present = within 3000 units of the fight |
+| Skipped a fight with TP ready | Alive, more than 4500 away, TP off cooldown at the start of the fight |
+| Help calls answered | After a HELP or GROUP UP callout, did you close half the distance within 30 s, and how fast |
+| Died alone | Nearest living ally more than 3000 away at the moment of death |
+| Died with items unused | BKB, Glimmer, Force Staff and the like off cooldown when you died |
+| Died after a RETREAT call | Within 20 s of a teammate's retreat callout |
+| Sat on gold | 2,000+ unspent gold for two minutes or more |
+| Carried wards around | Observers in the inventory for three minutes or more before placing them |
+| Time far from the team | Share of time (after 10:00) more than 4000 from every ally |
 
-These are real screen captures of `cyberspyde-agent --demo` over a plain backdrop. Each row is one player: status dot (green ok, amber low, red under attack), HP bar, `ULT` = ultimate (green ready, grey with seconds left, hidden before level 6), `TP` (green ready, grey cooldown, red none), `W2` = observer wards carried, and up to two fight-changing items. The radar and game-plan tips are off by default. The team board looks like this:
-
-![Team board](docs/screenshots/team-board.jpg)
+Each player gets a **usefulness score** out of 100 (fights joined, calls answered, deaths alone, skipped fights, unspent gold, wards; KDA barely counts), a grade from S to D, a nickname for what stood out ("Lone Wolf", "First Responder", "Dragon on a Gold Pile"), their worst and best moments with game time, and a chart of how spread out the team was. A **local AI coach** (Ollama on the team server, Qwen 3.6) then writes a short, honest review per player from those numbers. It only sees the computed report, never the host's private notes.
 
 ## Personal coaching (private)
 
@@ -49,9 +65,9 @@ Dota 2 ──GSI (HTTP POST, localhost, ≤50 ms)──▶ cyberspyde-agent ─�
 | Crate | Binary | What it does |
 |---|---|---|
 | `crates/protocol` | – | Shared JSON message types, hero/item names |
-| `crates/relay` | `cyberspyde-relay` | Team room: fans each player's state out to everyone else; serves the team board |
-| `crates/agent` | `cyberspyde-agent` | Runs on each player's PC: GSI receiver, relay client, overlay, build helper |
-| `crates/sim` | `cyberspyde-sim` | Latency and load test with N fake players |
+| `crates/relay` | `cyberspyde-relay` | Team server: fans each player's state out to everyone else; records matches, analyses them, serves the site |
+| `crates/agent` | `cyberspyde-agent` | The one program players run: GSI receiver, relay client, overlay, menu, build helper |
+| `crates/sim` | `cyberspyde-sim` | Developer tool, not shipped: latency test with N fake players, and `--script`, a 40-minute scripted match for testing the report |
 | `legacy-helper/` | – | The old CYBERSPYDE Dota helper (React + Netlify + Supabase), imported from [github.com/cyberspyde/dota](https://github.com/cyberspyde/dota) at commit `9c92436`. Its `build_data_final.json` is compiled into the agent |
 
 ## Speed
@@ -84,7 +100,7 @@ Rust with the GNU toolchain, plus MinGW-w64 (WinLibs) for the linker. No Visual 
 .\build.ps1 -Test
 ```
 
-Binaries go to `dist\`. Only `cyberspyde-agent.exe` goes to your friends; nothing else needs installing on their PCs.
+`dist\` gets two programs: `cyberspyde-agent.exe` is the only one players need (the site offers it for download), and `cyberspyde-relay.exe` runs on the team server. `cargo build -p sim` builds the test tool when you need it.
 
 ## Running
 
@@ -95,33 +111,32 @@ The team relay runs on an always-on server at **`dota.cyberspyde.uz`**, behind a
 To run your own relay instead:
 
 ```powershell
-.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key-file team-key.txt --team team.toml
+.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key-file team-key.txt --team team.toml --data-dir data --public-dir public --ai-url http://127.0.0.1:11434
 ```
 
 - `--key-file` keeps the key out of the command line; `--key <key>` and the `RELAY_KEY` variable also work.
+- `--data-dir`: match history (one report and one raw recording per game). `cyberspyde-relay analyze <match.rec.json>` re-runs the analysis offline.
+- `--public-dir`: `cyberspyde-agent.exe` and `version.txt` for the download button (agents see "update available" when the version there is newer), plus `assets/` images for the landing page.
+- `--ai-url` / `--ai-model` / `--ai-lang`: Ollama for the AI coach (off without `--ai-url`; default model `qwen3.6-agent`, English).
 - `--team` is optional; without it nobody gets coaching aids. The file is re-read on every connect, so edits apply when a player reconnects.
 - Either open TCP port 4747 (players then enter the bare IP, which becomes `ws://<ip>:4747/ws`), or put the relay on `127.0.0.1:4747` behind a reverse proxy with a domain, which becomes `wss://<domain>/ws`.
 
 ### Every player: the agent
 
-1. Run `cyberspyde-agent.exe`. The first time, it asks a few questions in its console window:
-   - your name (as the team knows you)
-   - the host (press Enter for the team server, `dota.cyberspyde.uz`)
-   - the team key
-   - overlay size (small / normal / large) and side (left / right)
-   - whether to show next-item help and the mini radar
+1. Download `cyberspyde-agent.exe` from [dota.cyberspyde.uz](https://dota.cyberspyde.uz) and run it. The first time, a setup window asks for your name (as the team knows you) and the team key, and lets you pick a theme, size, layout and side. The server is already filled in.
 
-   Answers are saved in `agent.toml` next to the program. To change them later, run `cyberspyde-agent.exe --setup`.
+   Settings are saved in `agent.toml` next to the program. Change them any time in game with **Numpad \***. There is no console window; logs go to `agent.log` (or start with `--console`).
 2. The agent finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.
 3. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
 4. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
 
 Try it without Dota: `cyberspyde-agent.exe --demo` (your four teammates with fake game data; one keeps getting ganked).
 
-### Hotkeys (change them in `agent.toml`)
+### Hotkeys (change them in the menu)
 
 | Key | Action |
 |---|---|
+| Numpad * | Open / close the menu |
 | Numpad 1 | Need help |
 | Numpad 2 | Group up |
 | Numpad 3 | Retreat |
@@ -140,6 +155,7 @@ The legacy database covers 62 heroes, alphabetically from Abaddon to Monkey King
 ## Security notes
 
 - The team key is checked by the relay. Traffic to the team server is encrypted (`wss://`, certificate verified). A self-hosted relay on a bare IP uses plain `ws://`, so don't reuse a real password as the key.
+- The site's landing page and download are public; the live view, match history, reports and player stats need the team key. The site keeps the key in the browser and sends it in a request header, never in a URL query.
 - The GSI receiver listens only on `127.0.0.1` and requires the random token written into Dota's cfg.
 
 ## Not yet built

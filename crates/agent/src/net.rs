@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{connect_async_with_config, tungstenite::Message};
 use tracing::{info, warn};
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct NetConfig {
     pub url: String,
     pub key: String,
@@ -24,8 +25,10 @@ fn text(msg: &ClientMsg) -> Message {
     Message::Text(serde_json::to_string(msg).expect("serialize").into())
 }
 
+/// Runs forever. A new value on `cfg_rx` (name, key or server changed in the
+/// menu) drops the current connection and reconnects with it.
 pub async fn run(
-    cfg: NetConfig,
+    mut cfg_rx: watch::Receiver<NetConfig>,
     team: SharedTeam,
     notify: Arc<Notifier>,
     mut state_rx: watch::Receiver<Option<PlayerState>>,
@@ -33,6 +36,15 @@ pub async fn run(
 ) {
     let mut backoff = Duration::from_millis(250);
     loop {
+        let cfg = cfg_rx.borrow_and_update().clone();
+        if cfg.key.is_empty() {
+            fail(&team, &notify, "no team key - open the menu (Numpad *) to set it".into());
+            if cfg_rx.changed().await.is_err() {
+                return;
+            }
+            continue;
+        }
+        team.lock().unwrap().my_name = cfg.name.clone();
         let attempt = tokio::time::timeout(
             Duration::from_secs(5),
             // disable_nagle = true: small frames leave immediately.
@@ -42,8 +54,8 @@ pub async fn run(
         let ws = match attempt {
             Ok(Ok((ws, _))) => ws,
             Ok(Err(e)) => {
-                fail(&team, &notify, format!("relay unreachable: {e}"));
-                tokio::time::sleep(backoff).await;
+                fail(&team, &notify, friendly(&e.to_string()));
+                wait_or_change(&mut cfg_rx, backoff, &team).await;
                 backoff = (backoff * 2).min(Duration::from_secs(3));
                 continue;
             }
@@ -77,6 +89,12 @@ pub async fn run(
 
         loop {
             tokio::select! {
+                _ = cfg_rx.changed() => {
+                    info!("settings changed; reconnecting");
+                    team.lock().unwrap().last_error = None;
+                    let _ = tx.close().await;
+                    break;
+                }
                 frame = rx.next() => {
                     let t = match frame {
                         Some(Ok(Message::Text(t))) => t,
@@ -124,7 +142,21 @@ pub async fn run(
         // A rejected key or version will not fix itself; don't hammer the relay.
         let fatal = matches!(team.lock().unwrap().last_error.as_deref(), Some(e) if e.contains("key") || e.contains("version"));
         if fatal {
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            wait_or_change(&mut cfg_rx, Duration::from_secs(10), &team).await;
+        }
+    }
+}
+
+/// Sleeps, but wakes early when the settings change (and forgets the old error).
+async fn wait_or_change(cfg_rx: &mut watch::Receiver<NetConfig>, d: Duration, team: &SharedTeam) {
+    tokio::select! {
+        _ = tokio::time::sleep(d) => {}
+        r = cfg_rx.changed() => {
+            if r.is_ok() {
+                team.lock().unwrap().last_error = None;
+                // Leave the change unseen so the main loop picks up the new value.
+                cfg_rx.mark_changed();
+            }
         }
     }
 }
@@ -142,4 +174,20 @@ fn fail(team: &SharedTeam, notify: &Notifier, why: String) {
     g.rtt_ms = None;
     drop(g);
     notify.poke();
+}
+
+/// Connection errors in words a player understands.
+fn friendly(e: &str) -> String {
+    let l = e.to_lowercase();
+    if l.contains("refused") {
+        "Team server is not answering (is the server address right?)".into()
+    } else if l.contains("dns") || l.contains("no such host") || l.contains("failed to lookup") || l.contains("nodename") {
+        "Can't find the team server - check your internet".into()
+    } else if l.contains("certificate") || l.contains("tls") {
+        "Secure connection to the team server failed".into()
+    } else if l.contains("timed out") || l.contains("unreachable") {
+        "Can't reach the team server - check your internet".into()
+    } else {
+        format!("Can't connect to the team server: {e}")
+    }
 }
