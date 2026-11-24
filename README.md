@@ -136,7 +136,7 @@ Try it without Dota: `cyberspyde-agent.exe --demo` (your four teammates with fak
 
 | Key | Action |
 |---|---|
-| Numpad * | Open / close the menu |
+| Numpad * | Open / close the menu. While it's open, drag the overlay anywhere; drag the menu by its title. Both places are remembered |
 | Numpad 1 | Need help |
 | Numpad 2 | Group up |
 | Numpad 3 | Retreat |

@@ -50,6 +50,9 @@ pub struct OverlayConfig {
     pub show_summary: bool,
     /// Latest tip from the team board.
     pub show_notes: bool,
+    /// Where the menu opens (logical pixels); negative = centred on screen.
+    pub menu_x: f32,
+    pub menu_y: f32,
 }
 
 impl OverlayConfig {
@@ -111,6 +114,8 @@ impl Default for OverlayConfig {
             density: "detailed".into(),
             show_summary: true,
             show_notes: true,
+            menu_x: -1.0,
+            menu_y: -1.0,
         }
     }
 }

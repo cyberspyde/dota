@@ -108,6 +108,8 @@ pub struct OverlayApp {
     // Menu.
     menu_open: bool,
     menu_focus: bool,
+    /// Last known menu window rectangle (UI points), saved when it closes.
+    menu_rect: Option<Rect>,
     tab: Tab,
     show_key: bool,
     show_server: bool,
@@ -182,6 +184,7 @@ impl OverlayApp {
             applied_pos,
             menu_open: false,
             menu_focus: false,
+            menu_rect: None,
             // Debug aid for screenshots: CYBERSPYDE_MENU_TAB=look|overlay|hotkeys|about
             tab: match std::env::var("CYBERSPYDE_MENU_TAB").unwrap_or_default().as_str() {
                 "look" => Tab::Look,
@@ -257,10 +260,9 @@ impl OverlayApp {
                 Action::Edit => self.set_edit(ctx, !self.edit),
                 Action::Menu => {
                     if self.menu_open {
-                        self.close_menu();
+                        self.close_menu(ctx);
                     } else {
-                        self.menu_open = true;
-                        self.menu_focus = true;
+                        self.open_menu(ctx);
                     }
                 }
             }
@@ -297,8 +299,28 @@ impl OverlayApp {
         }
     }
 
-    fn close_menu(&mut self) {
+    /// Opening the menu also unlocks the overlay so it can be dragged into place.
+    fn open_menu(&mut self, ctx: &egui::Context) {
+        self.menu_open = true;
+        self.menu_focus = true;
+        self.menu_rect = None;
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::MousePassthrough(false));
+    }
+
+    fn close_menu(&mut self, ctx: &egui::Context) {
         self.menu_open = false;
+        // Overlay back to click-through (unless move mode is on), remember both places.
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::MousePassthrough(!self.edit));
+        let z = ctx.zoom_factor();
+        if let Some(r) = ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect) {
+            self.cfg.overlay.x = r.min.x * z;
+            self.cfg.overlay.y = r.min.y * z;
+            self.applied_pos = (self.cfg.overlay.x, self.cfg.overlay.y);
+        }
+        if let Some(r) = self.menu_rect.take() {
+            self.cfg.overlay.menu_x = (r.min.x * z).max(0.0);
+            self.cfg.overlay.menu_y = (r.min.y * z).max(0.0);
+        }
         if self.show_server && !self.host_edit.trim().is_empty() {
             let url = setup::relay_url(&self.host_edit);
             if url != self.cfg.relay {
@@ -355,7 +377,12 @@ impl OverlayApp {
         let builder = egui::ViewportBuilder::default()
             .with_title("CYBERSPYDE settings")
             .with_inner_size([MENU_W, MENU_H])
-            .with_position([((sw - MENU_W * z) / 2.0).max(0.0) / z, ((sh - MENU_H * z) / 2.0).max(0.0) / z])
+            .with_position(if self.cfg.overlay.menu_x >= 0.0 {
+                // Where you last left it, kept on screen.
+                [self.cfg.overlay.menu_x.min(sw - 120.0).max(0.0) / z, self.cfg.overlay.menu_y.min(sh - 80.0).max(0.0) / z]
+            } else {
+                [((sw - MENU_W * z) / 2.0).max(0.0) / z, ((sh - MENU_H * z) / 2.0).max(0.0) / z]
+            })
             .with_decorations(false)
             .with_transparent(true)
             .with_always_on_top()
@@ -372,6 +399,9 @@ impl OverlayApp {
             if self.menu_focus {
                 self.menu_focus = false;
                 mctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            if let Some(r) = mctx.input(|i| i.viewport().outer_rect) {
+                self.menu_rect = Some(r);
             }
             if mctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
                 close = true;
@@ -480,7 +510,7 @@ impl OverlayApp {
                 });
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    forms::hint(ui, &t, &format!("{} opens and closes this menu", forms::key_label(&self.cfg.hotkeys.menu)));
+                    forms::hint(ui, &t, &format!("{} opens and closes this menu. Drag this window by its title, and the overlay anywhere.", forms::key_label(&self.cfg.hotkeys.menu)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let b = egui::Button::new(RichText::new("Done").strong().color(if t.light { Color32::WHITE } else { Color32::from_rgb(4, 16, 20) }))
                             .fill(t.accent)
@@ -497,7 +527,7 @@ impl OverlayApp {
             close = true;
         }
         if close || quit {
-            self.close_menu();
+            self.close_menu(ctx);
         }
         if move_mode {
             self.set_edit(ctx, true);
@@ -552,7 +582,8 @@ impl eframe::App for OverlayApp {
         let w = ov.width();
 
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-            if self.edit {
+            // Draggable in move mode and whenever the menu is open.
+            if self.edit || self.menu_open {
                 let r = ui.interact(ctx.screen_rect(), egui::Id::new("drag"), Sense::drag());
                 if r.drag_started() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
@@ -601,6 +632,8 @@ impl eframe::App for OverlayApp {
             }
             if self.edit {
                 one_line(ui, RichText::new(format!("MOVE: drag me, then press {}", forms::key_label(&self.cfg.hotkeys.edit_mode))).color(t.warn).size(11.0).strong());
+            } else if self.menu_open {
+                one_line(ui, RichText::new("Drag to move me; saved when the menu closes").color(t.accent).size(11.0).strong());
             }
             if now.duration_since(self.started) < Duration::from_secs(25) && !self.menu_open {
                 one_line(ui, RichText::new(format!("{} menu  ·  {} hide", forms::key_label(&self.cfg.hotkeys.menu), forms::key_label(&self.cfg.hotkeys.toggle))).color(t.accent).size(10.5));
@@ -726,8 +759,9 @@ impl eframe::App for OverlayApp {
             let used = ui.min_rect();
             let panel = Rect::from_min_max(outer.min, Pos2::new(outer.max.x, used.max.y + 10.0));
             let mut shapes = theme::panel(panel, &t, ov.opacity, 12.0);
-            if self.edit {
-                shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(panel, CornerRadius::same(12), Stroke::new(2.0_f32, t.warn), egui::StrokeKind::Outside)));
+            if self.edit || self.menu_open {
+                let c = if self.edit { t.warn } else { t.accent };
+                shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(panel, CornerRadius::same(12), Stroke::new(2.0_f32, c), egui::StrokeKind::Outside)));
             }
             ui.ctx().layer_painter(ui.layer_id()).set(bg, Shape::Vec(shapes));
         });

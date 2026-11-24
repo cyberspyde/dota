@@ -6,7 +6,7 @@ members = ["crates/protocol", "crates/relay", "crates/agent", "crates/sim"]
 default-members = ["crates/protocol", "crates/relay", "crates/agent"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [workspace.dependencies]
