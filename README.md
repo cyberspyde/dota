@@ -123,7 +123,7 @@ To run your own relay instead:
 
 ### Every player: the agent
 
-1. Download `cyberspyde-agent.exe` from [dota.cyberspyde.uz](https://dota.cyberspyde.uz) and run it. The first time, a setup window asks for your name (as the team knows you) and the team key, and lets you pick a theme, size, layout and side. The server is already filled in.
+1. Download `cyberspyde-agent.exe` from [dota.cyberspyde.uz](https://dota.cyberspyde.uz) and run it. The first time, setup takes three short steps: **You** (name, theme, size), **Fine-tune** (layout, side, opacity, what to show, the Dota launch option), and **Team key**. The key is checked with the server on the spot, so a typo shows up right away instead of in game. Then the overlay glides in.
 
    Settings are saved in `agent.toml` next to the program. Change them any time in game with **Numpad \***. There is no console window; logs go to `agent.log` (or start with `--console`).
 2. The agent finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.

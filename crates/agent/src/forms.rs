@@ -143,6 +143,13 @@ pub fn you(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config, show_key: &mut bool, 
 
 /// Theme swatches, size, layout, side and panels.
 pub fn look(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config, screen_w: f32) -> bool {
+    let a = look_basic(ui, t, cfg);
+    let b = look_more(ui, t, cfg, screen_w);
+    a || b
+}
+
+/// Theme and size: the easy first choices.
+pub fn look_basic(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config) -> bool {
     let mut changed = false;
     ui.label(RichText::new("Theme").color(t.muted).size(12.0));
     ui.horizontal_wrapped(|ui| {
@@ -181,6 +188,12 @@ pub fn look(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config, screen_w: f32) -> bo
         cfg.overlay.scale = [0.85, 1.0, 1.2][size];
         changed = true;
     }
+    changed
+}
+
+/// Layout, side and opacity: finer choices.
+pub fn look_more(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config, screen_w: f32) -> bool {
+    let mut changed = false;
     ui.label(RichText::new("Layout").color(t.muted).size(12.0));
     let mut dens = usize::from(cfg.overlay.compact());
     if segmented(ui, t, &mut dens, &["Detailed", "Compact"]) {

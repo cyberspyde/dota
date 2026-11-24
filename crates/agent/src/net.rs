@@ -177,7 +177,7 @@ fn fail(team: &SharedTeam, notify: &Notifier, why: String) {
 }
 
 /// Connection errors in words a player understands.
-fn friendly(e: &str) -> String {
+pub fn friendly(e: &str) -> String {
     let l = e.to_lowercase();
     if l.contains("refused") {
         "Team server is not answering (is the server address right?)".into()

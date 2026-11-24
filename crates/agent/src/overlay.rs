@@ -592,8 +592,20 @@ impl eframe::App for OverlayApp {
             if self.hidden && !self.edit && !self.menu_open {
                 return;
             }
-            let bg = ui.painter().add(Shape::Noop);
-            let outer = Rect::from_min_size(ui.max_rect().min + Vec2::new(4.0, 4.0), Vec2::new(w - 8.0, 10.0));
+            // Entrance: fade in and glide in from the screen edge it sits on.
+            let intro = {
+                let x = (now.duration_since(self.started).as_secs_f32() / 0.7).clamp(0.0, 1.0);
+                1.0 - (1.0 - x).powi(3)
+            };
+            if intro < 1.0 {
+                ctx.request_repaint();
+            }
+            let from_right = self.cfg.overlay.x > self.screen_w(ctx) / 2.0;
+            let slide = Vec2::new(if from_right { 1.0 } else { -1.0 } * 28.0 * (1.0 - intro), 0.0);
+            ui.set_opacity(intro);
+            let painter = ui.painter().clone();
+            let bg = painter.add(Shape::Noop);
+            let outer = Rect::from_min_size(ui.max_rect().min + Vec2::new(4.0, 4.0) + slide, Vec2::new(w - 8.0, 10.0));
             let inner_rect = outer.shrink2(Vec2::new(12.0, 10.0));
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(inner_rect.min, Vec2::new(inner_rect.width(), H))));
             let ui = &mut child;
@@ -763,7 +775,7 @@ impl eframe::App for OverlayApp {
                 let c = if self.edit { t.warn } else { t.accent };
                 shapes.push(Shape::Rect(egui::epaint::RectShape::stroke(panel, CornerRadius::same(12), Stroke::new(2.0_f32, c), egui::StrokeKind::Outside)));
             }
-            ui.ctx().layer_painter(ui.layer_id()).set(bg, Shape::Vec(shapes));
+            painter.set(bg, Shape::Vec(shapes));
         });
 
         if self.menu_open {
