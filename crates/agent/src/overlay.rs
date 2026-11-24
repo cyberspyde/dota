@@ -655,14 +655,20 @@ impl eframe::App for OverlayApp {
             }
 
             ui.add_space(4.0);
-            if let Some(me) = &me {
-                if ov.compact() { row_compact(ui, &t, me, now, true) } else { row_detailed(ui, &t, me, now, true) }
-            }
+            // Teammates first; your own row always last, so nobody mistakes
+            // the top name for a call-out about them.
             for m in &mates {
                 if ov.compact() { row_compact(ui, &t, m, now, false) } else { row_detailed(ui, &t, m, now, false) }
             }
             if mates.is_empty() && connected {
                 one_line(ui, RichText::new("No teammates online yet").color(t.dim).size(10.5));
+            }
+            if let Some(me) = &me {
+                if !mates.is_empty() {
+                    ui.add_space(2.0);
+                    separator(ui, &t);
+                }
+                if ov.compact() { row_compact(ui, &t, me, now, true) } else { row_detailed(ui, &t, me, now, true) }
             }
 
             if ov.show_radar && !coach.focus {
