@@ -1,8 +1,103 @@
 //! Finds the Dota 2 install and writes the Game State Integration config.
 
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}, time::Duration};
 
 pub const CFG_NAME: &str = "gamestate_integration_cyberspyde.cfg";
+
+/// Connection state shown by both the compact overlay and the settings menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FeedStatus {
+    Live,
+    WaitingForMatch,
+    NotRunning,
+    Unknown,
+}
+
+impl FeedStatus {
+    pub fn from_observations(age: Option<Duration>, in_match: bool, process: Option<bool>) -> Self {
+        if age.is_some_and(|age| age < Duration::from_secs(20)) {
+            // A menu heartbeat confirms that Dota is open, not that a match started.
+            return if in_match { Self::Live } else { Self::WaitingForMatch };
+        }
+        match process {
+            Some(true) => Self::WaitingForMatch,
+            Some(false) => Self::NotRunning,
+            None => Self::Unknown,
+        }
+    }
+
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::Live => "Dota is sending game data",
+            Self::WaitingForMatch => "Waiting for a match or Hero Demo",
+            Self::NotRunning => "Dota 2 isn't running",
+            Self::Unknown => "Waiting for Dota game data",
+        }
+    }
+}
+
+#[cfg(any(windows, test))]
+fn is_dota_executable(name: &[u16]) -> bool {
+    name.iter()
+        .copied()
+        .take_while(|&ch| ch != 0)
+        .map(|ch| if (65..=90).contains(&ch) { ch + 32 } else { ch })
+        .eq(b"dota2.exe".iter().copied().map(u16::from))
+}
+
+/// Read the process list without opening Dota or querying its memory. Compare
+/// Windows sessions so a different logged-in user does not affect this overlay.
+#[cfg(windows)]
+pub fn is_running() -> Option<bool> {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, GetLastError, ERROR_NO_MORE_FILES, INVALID_HANDLE_VALUE},
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            RemoteDesktop::ProcessIdToSessionId,
+        },
+    };
+
+    // SAFETY: use a valid snapshot handle and properly sized process entry.
+    // Both session ID outputs are writable u32 values; the handle is closed once.
+    unsafe {
+        let mut own_session = 0;
+        if ProcessIdToSessionId(std::process::id(), &mut own_session) == 0 {
+            return None;
+        }
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = Process32FirstW(snapshot, &mut entry);
+        let mut unknown_session = false;
+        let result = loop {
+            if found == 0 {
+                break (GetLastError() == ERROR_NO_MORE_FILES && !unknown_session).then_some(false);
+            }
+            if is_dota_executable(&entry.szExeFile) {
+                let mut session = 0;
+                if ProcessIdToSessionId(entry.th32ProcessID, &mut session) == 0 {
+                    unknown_session = true;
+                } else if session == own_session {
+                    break Some(true);
+                }
+            }
+            found = Process32NextW(snapshot, &mut entry);
+        };
+        CloseHandle(snapshot);
+        result
+    }
+}
+
+#[cfg(not(windows))]
+pub fn is_running() -> Option<bool> {
+    None
+}
 
 fn steam_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
@@ -97,6 +192,32 @@ pub fn install(dota: &Path, port: u16, token: &str) -> std::io::Result<(PathBuf,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn feed_status_tracks_launch_data_expiry_and_exit() {
+        use super::{Duration, FeedStatus};
+
+        let status = FeedStatus::from_observations;
+        assert_eq!(status(None, false, Some(false)).text(), "Dota 2 isn't running");
+        assert_eq!(status(None, false, Some(true)).text(), "Waiting for a match or Hero Demo");
+        assert_eq!(status(Some(Duration::from_secs(5)), true, Some(true)), FeedStatus::Live);
+        assert_eq!(status(Some(Duration::from_millis(19_999)), true, Some(false)), FeedStatus::Live);
+        assert_eq!(status(Some(Duration::from_secs(20)), true, Some(true)), FeedStatus::WaitingForMatch);
+        assert_eq!(status(Some(Duration::from_secs(21)), true, Some(false)), FeedStatus::NotRunning);
+        assert_eq!(status(Some(Duration::from_secs(5)), true, None), FeedStatus::Live);
+        assert_eq!(status(Some(Duration::from_secs(5)), false, None), FeedStatus::WaitingForMatch);
+        assert_eq!(status(Some(Duration::from_secs(21)), true, None), FeedStatus::Unknown);
+    }
+
+    #[test]
+    fn process_name_must_match_dota_not_steam_or_another_helper() {
+        use super::is_dota_executable;
+
+        let encode = |name: &str| name.encode_utf16().collect::<Vec<_>>();
+        assert!(is_dota_executable(&encode("DOTA2.EXE\0\0")));
+        assert!(!is_dota_executable(&encode("steam.exe\0")));
+        assert!(!is_dota_executable(&encode("dota2-helper.exe\0")));
+    }
+
     #[test]
     fn cfg_has_token_and_port() {
         let c = super::gsi_cfg(4646, "abc");

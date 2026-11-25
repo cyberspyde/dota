@@ -20,6 +20,9 @@ mod overlay;
 mod setup;
 mod team;
 mod theme;
+mod updater;
+#[cfg(windows)]
+mod tray;
 
 use axum::{body::Bytes, extract::State, http::StatusCode, routing::post, Router};
 use protocol::PlayerState;
@@ -38,10 +41,13 @@ struct Args {
     no_install: bool,
     setup: bool,
     console: bool,
+    no_update: bool,
+    /// Started by an update: wait for the previous copy to exit.
+    wait_old: bool,
 }
 
 fn parse_args() -> Args {
-    let mut a = Args { config: config::default_path(), demo: false, headless: false, no_install: false, setup: false, console: false };
+    let mut a = Args { config: config::default_path(), demo: false, headless: false, no_install: false, setup: false, console: false, no_update: false, wait_old: false };
     let mut it = std::env::args().skip(1);
     while let Some(x) = it.next() {
         match x.as_str() {
@@ -51,6 +57,8 @@ fn parse_args() -> Args {
             "--no-install" => a.no_install = true,
             "--setup" => a.setup = true,
             "--console" => a.console = true,
+            "--no-update" => a.no_update = true,
+            "--wait-old" => a.wait_old = true,
             "-h" | "--help" => {
                 show_console();
                 println!(
@@ -59,7 +67,8 @@ fn parse_args() -> Args {
                      --demo        fake game data, to try the overlay without Dota\n\
                      --headless    no overlay window (just share your data)\n\
                      --no-install  don't write the Dota GSI config file\n\
-                     --console     show logs in a console window instead of agent.log"
+                     --console     show logs in a console window instead of agent.log\n\
+                     --no-update   don't check the team site for a newer version on launch"
                 );
                 std::process::exit(0);
             }
@@ -196,7 +205,18 @@ fn init_logging(args: &Args) {
 fn main() {
     let args = parse_args();
     init_logging(&args);
-    if !args.demo && !single_instance() {
+    // After an update the previous copy may still be closing: give it a moment.
+    let mut first = !args.demo && single_instance();
+    if args.wait_old && !args.demo {
+        for _ in 0..40 {
+            if first {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            first = single_instance();
+        }
+    }
+    if !args.demo && !first {
         message_box("CYBERSPYDE Team Link is already running.\n\nPress Numpad * in game to open its menu.");
         return;
     }
@@ -225,6 +245,11 @@ fn main() {
     }
     if cfg.key.is_empty() && !args.demo {
         warn!("no team key set in {}; the relay will reject this agent", args.config.display());
+    }
+    // A newer version on the team site installs itself and restarts.
+    if !args.demo && !args.no_update && updater::on_launch(&cfg.relay, &cfg.overlay.theme) {
+        info!("updated; the new version is starting");
+        return;
     }
 
     if !args.no_install && !args.demo {
@@ -303,11 +328,32 @@ fn main() {
         rt.block_on(async {
             let _ = tokio::signal::ctrl_c().await;
         });
-        return;
-    }
-    if let Err(e) = overlay::run(cfg, args.config, team, notify, out_tx, net_tx, db) {
+    } else if let Err(e) = overlay::run(cfg, args.config, team, notify, out_tx, net_tx, db, !args.demo) {
         error!("overlay failed: {e}");
         message_box(&format!("The overlay could not start:\n{e}"));
     }
-    rt.shutdown_background();
+    shutdown_runtime(rt);
+}
+
+fn shutdown_runtime(rt: tokio::runtime::Runtime) {
+    // Drop the GSI listener and relay tasks before the process exits.
+    rt.shutdown_timeout(std::time::Duration::from_secs(2));
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    #[test]
+    fn shutdown_releases_local_listener_even_when_idle() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let listener = rt
+            .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        rt.spawn(async move {
+            axum::serve(listener, axum::Router::new()).await.unwrap();
+        });
+        assert!(std::net::TcpStream::connect(address).is_ok());
+        super::shutdown_runtime(rt);
+        assert!(std::net::TcpStream::connect(address).is_err());
+    }
 }

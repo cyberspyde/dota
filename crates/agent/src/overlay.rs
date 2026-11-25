@@ -6,6 +6,7 @@ use crate::{
     builds::{advise, BuildDb},
     coach::Coach,
     config::{self, Config},
+    dota::{self, FeedStatus},
     forms,
     net::NetConfig,
     setup,
@@ -28,6 +29,100 @@ const H: f32 = 640.0;
 const TITLE: &str = "cyberspyde overlay";
 const MENU_W: f32 = 640.0;
 const MENU_H: f32 = 600.0;
+
+const MENU_GUTTER: i8 = 12;
+const MENU_FOOTER_ROOM: f32 = 74.0;
+
+fn menu_bounds(screen: Vec2, zoom: f32, saved: Vec2) -> (Vec2, Vec2) {
+    let margin = Vec2::splat(12.0).min(screen * 0.05);
+    let size = Vec2::new(MENU_W, MENU_H).min((screen - margin * 2.0) / zoom);
+    let last = screen - size * zoom - margin;
+    let position = if saved.x >= 0.0 && saved.y >= 0.0 {
+        saved.max(margin).min(last)
+    } else {
+        (screen - size * zoom) / 2.0
+    };
+    (size, position / zoom)
+}
+
+fn menu_inset<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    egui::Frame::new()
+        .inner_margin(egui::Margin::symmetric(MENU_GUTTER, 0))
+        .show(ui, content)
+}
+
+fn menu_tabs(ui: &mut egui::Ui, t: &Theme, selected: &mut Tab) -> egui::Response {
+    menu_inset(ui, |ui| {
+        ui.horizontal(|ui| {
+            const TABS: [(Tab, &str); 5] = [
+                (Tab::General, "General"), (Tab::Look, "Look"), (Tab::Overlay, "Overlay"),
+                (Tab::Hotkeys, "Hotkeys"), (Tab::About, "About"),
+            ];
+            let gap = 4.0;
+            ui.spacing_mut().item_spacing.x = gap;
+            ui.spacing_mut().button_padding.x = 7.0;
+            let width = ((ui.available_width() - gap * (TABS.len() - 1) as f32) / TABS.len() as f32).max(1.0);
+            for (tab, name) in TABS {
+                let active = *selected == tab;
+                let button = egui::Button::new(RichText::new(name).size(13.0).strong().color(if active { t.accent } else { t.muted }))
+                    .fill(if active { t.accent.gamma_multiply(0.15) } else { t.track })
+                    .stroke(Stroke::NONE)
+                    .corner_radius(8.0);
+                if ui.add_sized(Vec2::new(width, 32.0), button).clicked() {
+                    *selected = tab;
+                }
+            }
+        })
+    }).response
+}
+
+fn menu_scroll<R>(ui: &mut egui::Ui, tab: Tab, content: impl FnOnce(&mut egui::Ui) -> R)
+    -> egui::scroll_area::ScrollAreaOutput<egui::InnerResponse<R>>
+{
+    ui.scope(|ui| {
+        // Keep the bar in the reserved right gutter without shifting the cards
+        // between short tabs and scrollable ones.
+        let scrollbar = &mut ui.spacing_mut().scroll;
+        scrollbar.floating = true;
+        scrollbar.floating_allocated_width = 0.0;
+        scrollbar.bar_width = 6.0;
+        let height = (ui.available_height() - MENU_FOOTER_ROOM).max(24.0);
+        egui::ScrollArea::vertical()
+            .id_salt(("settings-body", tab))
+            .auto_shrink([false, false])
+            .min_scrolled_height(0.0)
+            .max_height(height)
+            .show(ui, |ui| menu_inset(ui, content))
+    }).inner
+}
+
+fn menu_footer(ui: &mut egui::Ui, t: &Theme, shortcut: &str) -> (bool, bool) {
+    let mut done = false;
+    let mut exit_app = false;
+    ui.horizontal(|ui| {
+        let size = Vec2::new(100.0, 34.0);
+        let exit = egui::Button::new(RichText::new("Exit app").strong().color(t.bad)).corner_radius(8.0);
+        if ui.add_sized(size, exit).on_hover_text("Close the overlay and stop the background connection").clicked() {
+            exit_app = true;
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let color = if t.light { Color32::WHITE } else { Color32::from_rgb(4, 16, 20) };
+            let button = egui::Button::new(RichText::new("Done").strong().color(color))
+                .fill(t.accent).corner_radius(8.0);
+            if ui.add_sized(size, button).clicked() {
+                done = true;
+            }
+            let hint = format!("{} opens settings", forms::key_label(shortcut));
+            let center = egui::Layout::centered_and_justified(egui::Direction::LeftToRight);
+            ui.with_layout(center, |ui| {
+                ui.add(egui::Label::new(RichText::new(&hint).size(12.0).color(t.muted))
+                    .truncate()).on_hover_text(hint);
+            });
+        });
+    });
+    (done, exit_app)
+}
+
 
 /// Click-through makes winit add WS_EX_LAYERED to the window, but it never
 /// calls SetLayeredWindowAttributes, and Windows does not draw a layered
@@ -77,7 +172,7 @@ enum Action {
     Menu,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Tab {
     General,
     Look,
@@ -87,6 +182,8 @@ enum Tab {
 }
 
 pub struct OverlayApp {
+    #[cfg(windows)]
+    tray: Option<crate::tray::Tray>,
     cfg: Config,
     cfg_path: PathBuf,
     team: SharedTeam,
@@ -102,6 +199,8 @@ pub struct OverlayApp {
     flash: Option<(String, Instant)>,
     coach: Coach,
     started: Instant,
+    dota_checked_at: Option<Instant>,
+    dota_running: Option<bool>,
     // Size currently applied to the window.
     applied: (f32, f32),
     applied_pos: (f32, f32),
@@ -126,6 +225,7 @@ pub fn run(
     out: mpsc::Sender<ClientMsg>,
     net_tx: watch::Sender<NetConfig>,
     db: Arc<BuildDb>,
+    _enable_tray: bool,
 ) -> eframe::Result<()> {
     let w = cfg.overlay.width();
     let opts = eframe::NativeOptions {
@@ -149,7 +249,16 @@ pub fn run(
             notify.set(cc.egui_ctx.clone());
             cc.egui_ctx.set_zoom_factor(cfg.overlay.scale);
             theme::style(&cc.egui_ctx, &theme::get(&cfg.overlay.theme));
-            Ok(Box::new(OverlayApp::new(cfg, cfg_path, team, out, net_tx, db)))
+            #[allow(unused_mut)]
+            let mut app = OverlayApp::new(cfg, cfg_path, team, out, net_tx, db);
+            #[cfg(windows)]
+            if _enable_tray {
+                match crate::tray::Tray::new(cc.egui_ctx.clone()) {
+                    Ok(tray) => app.tray = Some(tray),
+                    Err(e) => tracing::warn!("could not create tray icon: {e}"),
+                }
+            }
+            Ok(Box::new(app))
         }),
     )
 }
@@ -165,6 +274,8 @@ impl OverlayApp {
         let applied = (cfg.overlay.width(), cfg.overlay.scale);
         let applied_pos = (cfg.overlay.x, cfg.overlay.y);
         let mut app = OverlayApp {
+            #[cfg(windows)]
+            tray: None,
             cfg,
             cfg_path,
             team,
@@ -180,6 +291,8 @@ impl OverlayApp {
             flash: None,
             coach: Coach::default(),
             started: Instant::now(),
+            dota_checked_at: None,
+            dota_running: None,
             applied,
             applied_pos,
             menu_open: false,
@@ -343,6 +456,13 @@ impl OverlayApp {
         self.save("settings saved");
     }
 
+    fn request_exit(&mut self, ctx: &egui::Context) {
+        if self.menu_open {
+            self.close_menu(ctx);
+        }
+        ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
+    }
+
     /// Resizes / moves the window when size, layout or side changed in the menu.
     fn apply_geometry(&mut self, ctx: &egui::Context) {
         let want = (self.cfg.overlay.width(), self.cfg.overlay.scale);
@@ -365,7 +485,7 @@ impl OverlayApp {
             .unwrap_or_else(forms::screen_width)
     }
 
-    fn menu(&mut self, ctx: &egui::Context) {
+    fn menu(&mut self, ctx: &egui::Context, feed_status: FeedStatus) {
         let t = theme::get(&self.cfg.overlay.theme);
         let z = ctx.zoom_factor();
         let (sw, sh) = ctx
@@ -374,23 +494,21 @@ impl OverlayApp {
             .unwrap_or((forms::screen_width(), forms::screen_height()));
         let screen_w = self.screen_w(ctx);
         let id = egui::ViewportId::from_hash_of("cyberspyde-menu");
+        let available = Vec2::new(sw, sh);
+        let saved = Vec2::new(self.cfg.overlay.menu_x, self.cfg.overlay.menu_y);
+        let (size, position) = menu_bounds(available, z, saved);
         let builder = egui::ViewportBuilder::default()
             .with_title("CYBERSPYDE settings")
-            .with_inner_size([MENU_W, MENU_H])
-            .with_position(if self.cfg.overlay.menu_x >= 0.0 {
-                // Where you last left it, kept on screen.
-                [self.cfg.overlay.menu_x.min(sw - 120.0).max(0.0) / z, self.cfg.overlay.menu_y.min(sh - 80.0).max(0.0) / z]
-            } else {
-                [((sw - MENU_W * z) / 2.0).max(0.0) / z, ((sh - MENU_H * z) / 2.0).max(0.0) / z]
-            })
+            .with_inner_size(size)
+            .with_position(position.to_pos2())
             .with_decorations(false)
             .with_transparent(true)
             .with_always_on_top()
             .with_resizable(false)
             .with_icon(crate::icon());
-        let (connected, err, rtt, last_gsi, update, latest) = {
+        let (connected, err, rtt, update, latest) = {
             let tm = self.team.lock().unwrap();
-            (tm.connected, tm.last_error.clone(), tm.rtt_ms, tm.last_gsi, tm.update_available(), tm.latest_agent.clone())
+            (tm.connected, tm.last_error.clone(), tm.rtt_ms, tm.update_available(), tm.latest_agent.clone())
         };
         let mut close = false;
         let mut quit = false;
@@ -407,20 +525,9 @@ impl OverlayApp {
                 close = true;
             }
             close |= forms::window_chrome(mctx, &t, "Settings", |ui| {
-                ui.horizontal(|ui| {
-                    for (tab, name) in [(Tab::General, "General"), (Tab::Look, "Look"), (Tab::Overlay, "Overlay"), (Tab::Hotkeys, "Hotkeys"), (Tab::About, "About")] {
-                        let on = self.tab == tab;
-                        let b = egui::Button::new(RichText::new(name).color(if on { t.accent } else { t.muted }).strong())
-                            .fill(if on { t.accent.gamma_multiply(0.15) } else { Color32::TRANSPARENT })
-                            .stroke(Stroke::NONE)
-                            .corner_radius(8.0);
-                        if ui.add(b).clicked() {
-                            self.tab = tab;
-                        }
-                    }
-                });
-                ui.add_space(4.0);
-                egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height() - 52.0).show(ui, |ui| match self.tab {
+                menu_tabs(ui, &t, &mut self.tab);
+                ui.add_space(12.0);
+                menu_scroll(ui, self.tab, |ui| match self.tab {
                     Tab::General => {
                         forms::heading(ui, &t, "You");
                         forms::card(ui, &t, |ui| {
@@ -443,14 +550,17 @@ impl OverlayApp {
                                 }
                             });
                             ui.horizontal(|ui| {
-                                let seen = last_gsi.is_some_and(|g| g.elapsed() < Duration::from_secs(20));
-                                status_dot(ui, if seen { t.good } else { t.warn });
-                                if seen {
-                                    ui.label("Dota is sending game data");
+                                let live = feed_status == FeedStatus::Live;
+                                status_dot(ui, if live { t.good } else { t.warn });
+                                if live {
+                                    ui.label(feed_status.text());
                                 } else {
-                                    ui.add(egui::Label::new(RichText::new("No data from Dota yet: start Dota with -gamestateintegration").color(t.warn)).truncate());
+                                    ui.label(RichText::new(feed_status.text()).color(t.warn));
                                 }
                             });
+                            if feed_status == FeedStatus::WaitingForMatch {
+                                forms::hint(ui, &t, "If this stays here in a match, check the -gamestateintegration launch option in Steam.");
+                            }
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 if ui.button("Open team site").clicked() {
@@ -492,8 +602,13 @@ impl OverlayApp {
                             ui.label(format!("Version {}", protocol::AGENT_VERSION));
                             if update {
                                 ui.label(RichText::new(format!("Version {latest} is out.")).color(t.accent).strong());
-                                if ui.button("Download the update").clicked() {
-                                    open_url(&format!("{}/download/cyberspyde-agent.exe", setup::site_url(&self.cfg.relay)));
+                                if ui.button("Update now").clicked() {
+                                    // The new copy installs the update on launch, once this one has closed.
+                                    if crate::updater::restart() {
+                                        quit = true;
+                                    } else {
+                                        open_url(&format!("{}/download/cyberspyde-agent.exe", setup::site_url(&self.cfg.relay)));
+                                    }
                                 }
                                 forms::hint(ui, &t, "Quit this program, replace the old file with the new one, start it again.");
                             } else if !latest.is_empty() {
@@ -502,38 +617,29 @@ impl OverlayApp {
                             ui.add_space(4.0);
                             forms::hint(ui, &t, "Uses Valve's official Game State Integration: you share only your own data. Settings are saved next to the program in agent.toml.");
                         });
-                        ui.add_space(8.0);
-                        if ui.add(egui::Button::new(RichText::new("Quit the program").color(t.bad))).clicked() {
-                            quit = true;
-                        }
                     }
                 });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    forms::hint(ui, &t, &format!("{} opens and closes this menu. Drag this window by its title, and the overlay anywhere.", forms::key_label(&self.cfg.hotkeys.menu)));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(RichText::new("Done").strong().color(if t.light { Color32::WHITE } else { Color32::from_rgb(4, 16, 20) }))
-                            .fill(t.accent)
-                            .corner_radius(9.0)
-                            .min_size(Vec2::new(110.0, 34.0));
-                        if ui.add(b).clicked() {
-                            close = true;
-                        }
-                    });
-                });
+                ui.add_space(5.0);
+                let (done, exit) = menu_inset(ui, |ui| {
+                    ui.separator();
+                    menu_footer(ui, &t, &self.cfg.hotkeys.menu)
+                }).inner;
+                close |= done;
+                quit |= exit;
             });
         });
         if move_mode {
             close = true;
         }
-        if close || quit {
+        if quit {
+            self.request_exit(ctx);
+            return;
+        }
+        if close {
             self.close_menu(ctx);
         }
         if move_mode {
             self.set_edit(ctx, true);
-        }
-        if quit {
-            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
         }
     }
 }
@@ -547,6 +653,16 @@ impl eframe::App for OverlayApp {
         // Cheap (two syscalls) and self-healing: winit re-applies the
         // layered style whenever click-through is toggled.
         ensure_layered_visible();
+        #[cfg(windows)]
+        match self.tray.as_ref().and_then(crate::tray::Tray::take_action) {
+            Some(crate::tray::Action::Exit) => {
+                self.request_exit(ctx);
+                return;
+            }
+            Some(crate::tray::Action::OpenSettings) if self.menu_open => self.menu_focus = true,
+            Some(crate::tray::Action::OpenSettings) => self.open_menu(ctx),
+            None => {}
+        }
         self.poll_hotkeys(ctx);
         self.apply_geometry(ctx);
         // Timers (respawn, cooldowns) tick between data updates; data updates
@@ -556,6 +672,10 @@ impl eframe::App for OverlayApp {
         theme::style(ctx, &t);
 
         let now = Instant::now();
+        if self.dota_checked_at.is_none_or(|checked| now.duration_since(checked) >= Duration::from_secs(1)) {
+            self.dota_running = dota::is_running();
+            self.dota_checked_at = Some(now);
+        }
         let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, note, update) = {
             let mut tm = self.team.lock().unwrap();
             tm.prune(now);
@@ -577,6 +697,12 @@ impl eframe::App for OverlayApp {
                 tm.update_available(),
             )
         };
+        let in_match = me.as_ref().and_then(|m| m.state.as_ref()).is_some_and(|s| s.in_match());
+        let feed_status = FeedStatus::from_observations(
+            last_gsi.map(|g| now.saturating_duration_since(g)),
+            in_match,
+            self.dota_running,
+        );
         let s = coach.scale;
         let ov = self.cfg.overlay.clone();
         let w = ov.width();
@@ -639,8 +765,8 @@ impl eframe::App for OverlayApp {
             if let Some(e) = err.as_ref().filter(|_| !connected) {
                 one_line(ui, RichText::new(e).color(t.bad).size(10.5));
             }
-            if last_gsi.is_none_or(|g| now.duration_since(g) > Duration::from_secs(20)) {
-                one_line(ui, RichText::new("Waiting for Dota (launch option -gamestateintegration)").color(t.warn).size(10.5));
+            if feed_status != FeedStatus::Live {
+                one_line(ui, RichText::new(feed_status.text()).color(t.warn).size(10.5));
             }
             if self.edit {
                 one_line(ui, RichText::new(format!("MOVE: drag me, then press {}", forms::key_label(&self.cfg.hotkeys.edit_mode))).color(t.warn).size(11.0).strong());
@@ -779,7 +905,7 @@ impl eframe::App for OverlayApp {
         });
 
         if self.menu_open {
-            self.menu(ctx);
+            self.menu(ctx, feed_status);
         }
     }
 }
@@ -1016,5 +1142,78 @@ fn radar(ui: &mut egui::Ui, t: &Theme, me: Option<&Mate>, mates: &[Mate], callou
     }
     if let Some(me) = me {
         draw(me, true);
+    }
+}
+
+#[cfg(test)]
+mod menu_layout_tests {
+    use super::*;
+
+    #[test]
+    fn menu_fits_small_display_at_large_zoom_and_centers_by_default() {
+        let screen = Vec2::new(640.0, 480.0);
+        let scale = 1.2;
+        let (size, centered) = menu_bounds(screen, scale, Vec2::splat(-1.0));
+        assert!((centered * scale * 2.0 + size * scale - screen).length() < 0.1);
+        let (size, saved) = menu_bounds(screen, scale, Vec2::splat(10_000.0));
+        assert!((saved * scale + size * scale).x <= 628.1);
+        assert!((saved * scale + size * scale).y <= 468.1);
+    }
+
+    #[test]
+    fn all_tabs_keep_balanced_gutters_and_footer_clear_when_scrolling() {
+        for size in [Vec2::new(MENU_W, MENU_H), Vec2::new(420.0, 375.0)] {
+            for tab in [Tab::General, Tab::Look, Tab::Overlay, Tab::Hotkeys, Tab::About] {
+                let ctx = egui::Context::default();
+                let t = theme::get("default");
+                theme::style(&ctx, &t);
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
+                    ..Default::default()
+                };
+                let _ = ctx.run(input, |ctx| {
+                    forms::window_chrome(ctx, &t, "Settings", |ui| {
+                        let inner = ui.max_rect();
+                        let mut selected = tab;
+                        let tabs = menu_tabs(ui, &t, &mut selected);
+                        ui.add_space(12.0);
+                        let scroll = menu_scroll(ui, tab, |ui| {
+                            let body = ui.max_rect();
+                            forms::card(ui, &t, |ui| {
+                                let mut cfg = Config::default();
+                                match tab {
+                                    Tab::General => {
+                                        // Exercise the narrow row with a long server and team key.
+                                        cfg.relay = format!("wss://{}.example.test/ws", "long".repeat(15));
+                                        forms::you(ui, &t, &mut cfg, &mut false, &mut String::new(), &mut false);
+                                    }
+                                    Tab::Look => { forms::look(ui, &t, &mut cfg, size.x); }
+                                    Tab::Overlay => { forms::panels(ui, &t, &mut cfg); }
+                                    Tab::Hotkeys => { forms::hotkeys(ui, &t, &mut cfg.hotkeys); }
+                                    Tab::About => { ui.label("About"); }
+                                }
+                            });
+                            if matches!(tab, Tab::Hotkeys) {
+                                ui.add_space(500.0);
+                            }
+                            (body, ui.min_rect())
+                        });
+                        ui.add_space(5.0);
+                        let footer = menu_inset(ui, |ui| {
+                            ui.separator();
+                            menu_footer(ui, &t, "Ctrl+Shift+NumpadMultiply");
+                        });
+                        let (body, painted) = scroll.inner.inner;
+                        assert!((body.left() - inner.left() - MENU_GUTTER as f32).abs() < 1.0);
+                        assert!((inner.right() - body.right() - MENU_GUTTER as f32).abs() < 1.0, "{tab:?} {size:?}: gutter body={body:?} window={inner:?}, tabs={:?}", tabs.rect);
+                        assert!(painted.right() <= body.right() + 1.0, "{tab:?} content overflowed: {painted:?} vs {body:?}");
+                        assert!(tabs.rect.right() <= inner.right() + 1.0, "tabs overflowed: {tabs:?}");
+                        assert!(scroll.inner_rect.bottom() <= footer.response.rect.top() + 1.0);
+                        assert!(footer.response.rect.bottom() <= inner.bottom() + 1.0,
+                            "footer overflowed: {:?} vs {inner:?}", footer.response.rect);
+                    });
+                });
+            }
+        }
     }
 }

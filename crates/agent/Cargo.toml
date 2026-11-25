@@ -23,7 +23,10 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 toml = "0.8"
 eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow"] }
 global-hotkey = "0.6"
+# Self-update: download over HTTPS and check the SHA-256 before replacing the exe.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-webpki-roots"] }
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Console", "Win32_System_Threading", "Win32_Security"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Console", "Win32_System_Diagnostics_ToolHelp", "Win32_System_LibraryLoader", "Win32_System_RemoteDesktop", "Win32_System_Threading", "Win32_Security"] }

@@ -113,16 +113,24 @@ pub fn you(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config, show_key: &mut bool, 
     changed |= r.changed();
     ui.label(RichText::new("Team key").color(t.muted).size(12.0));
     ui.horizontal(|ui| {
-        let w = ui.available_width() - 64.0;
-        let r = ui.add(egui::TextEdit::singleline(&mut cfg.key).password(!*show_key).hint_text(RichText::new("from your host").color(t.dim)).margin(egui::Margin::symmetric(10, 7)).desired_width(w));
+        let margin = egui::Margin::symmetric(10, 7);
+        let button = Vec2::new(84.0, 32.0);
+        let w = (ui.available_width() - button.x - ui.spacing().item_spacing.x - margin.sum().x).max(24.0);
+        let r = ui.add(egui::TextEdit::singleline(&mut cfg.key).password(!*show_key).hint_text(RichText::new("from your host").color(t.dim)).margin(margin).desired_width(w));
         changed |= r.changed();
-        if ui.button(if *show_key { "Hide" } else { "Show" }).clicked() {
+        if ui.add_sized(button, egui::Button::new(if *show_key { "Hide" } else { "Show" })).clicked() {
             *show_key = !*show_key;
         }
     });
     ui.horizontal(|ui| {
-        hint(ui, t, &format!("Server: {}", relay_host(&cfg.relay)));
-        if ui.small_button(if *show_server { "Done" } else { "Change" }).clicked() {
+        let button = Vec2::new(84.0, 28.0);
+        let server = format!("Server: {}", relay_host(&cfg.relay));
+        let label_w = (ui.available_width() - button.x - ui.spacing().item_spacing.x).max(20.0);
+        ui.add_sized(
+            [label_w, button.y],
+            egui::Label::new(RichText::new(&server).size(12.0).color(t.muted)).halign(egui::Align::Min).truncate(),
+        ).on_hover_text(server);
+        if ui.add_sized(button, egui::Button::new(if *show_server { "Done" } else { "Change" })).clicked() {
             if *show_server && !host_edit.trim().is_empty() {
                 let url = relay_url(host_edit);
                 if url != cfg.relay {
@@ -238,52 +246,68 @@ pub fn hotkeys(ui: &mut egui::Ui, t: &Theme, h: &mut HotkeyConfig) -> bool {
         ("Callout: on my way", &mut h.on_my_way),
         ("Callout: Roshan", &mut h.roshan),
     ];
-    egui::Grid::new("hotkeys").num_columns(2).spacing(Vec2::new(14.0, 8.0)).show(ui, |ui| {
-        for (label, spec) in rows {
-            ui.label(RichText::new(label).color(t.text));
-            ui.horizontal(|ui| {
-                let parts: Vec<String> = spec.split('+').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-                let has = |m: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(m));
-                let (mut ctrl, mut shift, mut alt) = (has("ctrl"), has("shift"), has("alt"));
-                let mut key = parts
-                    .iter()
-                    .find(|p| !["ctrl", "shift", "alt", "control"].contains(&p.to_lowercase().as_str()))
-                    .cloned()
-                    .unwrap_or_default();
-                let mut c = false;
-                c |= ui.selectable_label(ctrl, "Ctrl").clicked().then(|| ctrl = !ctrl).is_some();
-                c |= ui.selectable_label(shift, "Shift").clicked().then(|| shift = !shift).is_some();
-                c |= ui.selectable_label(alt, "Alt").clicked().then(|| alt = !alt).is_some();
-                egui::ComboBox::from_id_salt(label)
-                    .width(110.0)
-                    .selected_text(KEYS.iter().find(|(k, _)| k.eq_ignore_ascii_case(&key)).map(|(_, l)| *l).unwrap_or(if key.is_empty() { "none" } else { key.as_str() }))
-                    .show_ui(ui, |ui| {
-                        if ui.selectable_label(key.is_empty(), "none").clicked() {
-                            key.clear();
+    let mut controls = |ui: &mut egui::Ui, label: &str, spec: &mut String| {
+        ui.horizontal(|ui| {
+            let parts: Vec<String> = spec.split('+').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+            let has = |m: &str| parts.iter().any(|p| p.eq_ignore_ascii_case(m));
+            let (mut ctrl, mut shift, mut alt) = (has("ctrl"), has("shift"), has("alt"));
+            let mut key = parts
+                .iter()
+                .find(|p| !["ctrl", "shift", "alt", "control"].contains(&p.to_lowercase().as_str()))
+                .cloned()
+                .unwrap_or_default();
+            let mut c = false;
+            c |= ui.selectable_label(ctrl, "Ctrl").clicked().then(|| ctrl = !ctrl).is_some();
+            c |= ui.selectable_label(shift, "Shift").clicked().then(|| shift = !shift).is_some();
+            c |= ui.selectable_label(alt, "Alt").clicked().then(|| alt = !alt).is_some();
+            egui::ComboBox::from_id_salt(label)
+                .width(110.0)
+                .truncate()
+                .selected_text(KEYS.iter().find(|(k, _)| k.eq_ignore_ascii_case(&key)).map(|(_, l)| *l).unwrap_or(if key.is_empty() { "none" } else { key.as_str() }))
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(key.is_empty(), "none").clicked() {
+                        key.clear();
+                        c = true;
+                    }
+                    for (k, l) in KEYS {
+                        if ui.selectable_label(key == *k, *l).clicked() {
+                            key = k.to_string();
                             c = true;
                         }
-                        for (k, l) in KEYS {
-                            if ui.selectable_label(key == *k, *l).clicked() {
-                                key = k.to_string();
-                                c = true;
-                            }
-                        }
-                    });
-                if c {
-                    let mut s = Vec::new();
-                    if !key.is_empty() {
-                        if ctrl { s.push("ctrl".to_string()); }
-                        if shift { s.push("shift".to_string()); }
-                        if alt { s.push("alt".to_string()); }
-                        s.push(key.clone());
                     }
-                    *spec = s.join("+");
-                    changed = true;
+                });
+            if c {
+                let mut s = Vec::new();
+                if !key.is_empty() {
+                    if ctrl { s.push("ctrl".to_string()); }
+                    if shift { s.push("shift".to_string()); }
+                    if alt { s.push("alt".to_string()); }
+                    s.push(key.clone());
                 }
+                *spec = s.join("+");
+                changed = true;
+            }
+        });
+    };
+    // Stack the labels on narrow displays instead of widening the card into its gutter.
+    const CONTROLS_WIDTH: f32 = 292.0;
+    let label_width = ui.available_width() - CONTROLS_WIDTH - ui.spacing().item_spacing.x;
+    let wide = label_width >= 132.0;
+    for (label, spec) in rows {
+        if wide {
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    [label_width, 26.0],
+                    egui::Label::new(RichText::new(label).color(t.text)).halign(egui::Align::Min).truncate(),
+                );
+                controls(ui, label, spec);
             });
-            ui.end_row();
+        } else {
+            ui.label(RichText::new(label).color(t.text));
+            controls(ui, label, spec);
+            ui.add_space(4.0);
         }
-    });
+    }
     changed
 }
 

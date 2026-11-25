@@ -125,7 +125,10 @@ To run your own relay instead:
 
 1. Download `cyberspyde-agent.exe` from [dota.cyberspyde.uz](https://dota.cyberspyde.uz) and run it. The first time, setup takes three short steps: **You** (name, theme, size), **Fine-tune** (layout, side, opacity, what to show, the Dota launch option), and **Team key**. The key is checked with the server on the spot, so a typo shows up right away instead of in game. Then the overlay glides in.
 
+   **Updates install themselves.** On every launch the program asks the team site for its version; if a newer one is there, a small window downloads it, checks its SHA-256 against the site, swaps the program file and restarts. Menu > About > Update now does the same without waiting for a relaunch. `--no-update` turns the check off.
+
    Settings are saved in `agent.toml` next to the program. Change them any time in game with **Numpad \***. There is no console window; logs go to `agent.log` (or start with `--console`).
+   On Windows, find **CYBERSPYDE Team Link** in the notification area (check the hidden icons arrow). Right-click it for **Open settings** or **Exit app**. **Exit app** in Settings also fully stops the program; **Done** only closes Settings.
 2. The agent finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.
 3. In Steam, add `-gamestateintegration` to Dota 2's launch options, then restart Dota.
 4. In Dota, set Display Mode to **Borderless window**. The overlay can't draw over exclusive fullscreen.
