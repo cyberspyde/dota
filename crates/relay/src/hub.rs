@@ -108,6 +108,20 @@ impl Hub {
         Self::broadcast_locked(&g, frame, except);
     }
 
+    /// Connected players: (id, name as they typed it).
+    pub fn players(&self) -> Vec<(u32, String)> {
+        let g = self.inner.lock().unwrap();
+        g.members.iter().filter(|(_, m)| m.role == Role::Player).map(|(id, m)| (*id, m.name.clone())).collect()
+    }
+
+    /// One frame to one member (a personal message such as a post-game card).
+    pub fn send_to(&self, id: u32, frame: &Utf8Bytes) {
+        let g = self.inner.lock().unwrap();
+        if let Some(m) = g.members.get(&id) {
+            let _ = m.tx.try_send(frame.clone());
+        }
+    }
+
     fn broadcast_locked(g: &Inner, frame: &Utf8Bytes, except: Option<u32>) {
         for (id, m) in &g.members {
             if Some(*id) == except {

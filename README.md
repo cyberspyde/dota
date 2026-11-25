@@ -127,6 +127,8 @@ To run your own relay instead:
 
    **Updates install themselves.** On every launch the program asks the team site for its version; if a newer one is there, a small window downloads it, checks its SHA-256 against the site, swaps the program file and restarts. Menu > About > Update now does the same without waiting for a relaunch. `--no-update` turns the check off.
 
+   **Your card after every game.** About a minute after a game ends, a small card slides in next to the overlay: your three most telling facts, your worst moment, and the coach's line for you (it fills in when the coach has written it). It never appears during a game. "Full report" opens that match on the site.
+
    Settings are saved in `agent.toml` next to the program. Change them any time in game with **Numpad \***. There is no console window; logs go to `agent.log` (or start with `--console`).
    On Windows, find **CYBERSPYDE Team Link** in the notification area (check the hidden icons arrow). Right-click it for **Open settings** or **Exit app**. **Exit app** in Settings also fully stops the program; **Done** only closes Settings.
 2. The agent finds Dota through Steam and writes `game/dota/cfg/gamestate_integration/gamestate_integration_cyberspyde.cfg`.

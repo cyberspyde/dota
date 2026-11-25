@@ -17,6 +17,7 @@ mod forms;
 mod gsi;
 mod net;
 mod overlay;
+mod postgame;
 mod setup;
 mod team;
 mod theme;

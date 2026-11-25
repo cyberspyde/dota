@@ -215,6 +215,8 @@ pub struct OverlayApp {
     host_edit: String,
     net_dirty: bool,
     keys_dirty: bool,
+    /// The post-game card window.
+    card: crate::postgame::CardView,
 }
 
 pub fn run(
@@ -311,6 +313,7 @@ impl OverlayApp {
             host_edit,
             net_dirty: false,
             keys_dirty: false,
+            card: Default::default(),
         };
         app.register_hotkeys();
         app
@@ -907,6 +910,16 @@ impl eframe::App for OverlayApp {
         if self.menu_open {
             self.menu(ctx, feed_status);
         }
+
+        // After a game: your card from the report, next to the overlay.
+        let place = crate::postgame::Place {
+            x: self.cfg.overlay.x,
+            y: self.cfg.overlay.y,
+            width: self.cfg.overlay.width() * self.cfg.overlay.scale,
+            on_right: self.cfg.overlay.x > self.screen_w(ctx) / 2.0,
+        };
+        let (relay, key) = (self.cfg.relay.clone(), self.cfg.key.clone());
+        self.card.show(ctx, &self.team, &t, &place, &relay, &key);
     }
 }
 

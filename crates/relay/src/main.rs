@@ -10,6 +10,7 @@ mod analysis;
 mod facts;
 mod hub;
 mod opendota;
+mod postgame;
 mod profiles;
 mod record;
 mod store;
@@ -308,6 +309,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, addr: String) {
     {
         hub.leave(id);
         return;
+    }
+
+    // A game that just ended: show this player their card even after a restart.
+    if role == Role::Player {
+        if let Some(card) = postgame::recent_card(&app, &canon) {
+            let _ = tx.try_send(encode(&ServerMsg::PostGame { card }));
+        }
     }
 
     // 3. Writer: drains this member's queue into the socket.

@@ -233,6 +233,30 @@ impl Coaching {
     }
 }
 
+/// One player's post-game card: a few plain facts, the worst moment and the
+/// coach's line for them. Everything else is in the full report on the site.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct PostGameCard {
+    pub match_id: String,
+    pub won: Option<bool>,
+    /// Game length, seconds.
+    pub duration: i32,
+    /// "6 team fights: 4 won, 1 lost."
+    pub team_line: String,
+    /// (tone, text): tone is "good", "bad" or "neutral"; worst first.
+    pub facts: Vec<(String, String)>,
+    /// "18:20 Died alone, holding 2,400 gold"
+    pub worst: Option<String>,
+    pub best: Option<String>,
+    /// The AI coach's line for this player, once written.
+    pub coach: Option<String>,
+    pub lesson: Option<String>,
+    /// True while the coach is still writing (the card updates itself).
+    pub coach_pending: bool,
+    pub replay_facts: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MemberInfo {
     pub id: u32,
@@ -314,6 +338,11 @@ pub enum ServerMsg {
     },
     Error {
         message: String,
+    },
+    /// Your own short report after a game. Sent when the report is ready and
+    /// again when the coach's lesson or the replay facts arrive.
+    PostGame {
+        card: PostGameCard,
     },
 }
 

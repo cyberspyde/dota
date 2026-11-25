@@ -420,6 +420,7 @@ async fn write_review(app: App, mut report: analysis::MatchReport) {
         if let Err(e) = app.store.save(&report) {
             warn!("save report {}: {e}", report.match_id);
         }
+        crate::postgame::push(&app, &report);
         return;
     }
     report.ai_status = "writing".into();
@@ -428,6 +429,8 @@ async fn write_review(app: App, mut report: analysis::MatchReport) {
         warn!("save report {}: {e}", report.match_id);
         return;
     }
+    // Players see their card now; the coach's line follows.
+    crate::postgame::push(&app, &report);
     match ai::review(&app.ai, &report).await {
         Ok(text) => {
             report.ai_review = Some(text);
@@ -442,4 +445,5 @@ async fn write_review(app: App, mut report: analysis::MatchReport) {
     if let Err(e) = app.store.save(&report) {
         warn!("save report {}: {e}", report.match_id);
     }
+    crate::postgame::push(&app, &report);
 }

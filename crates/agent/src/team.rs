@@ -194,6 +194,10 @@ pub struct Team {
     pub coaching: Coaching,
     /// Newest agent version the server offers for download.
     pub latest_agent: String,
+    /// This player's latest post-game card, and a counter that moves on
+    /// every new or updated card.
+    pub postgame: Option<protocol::PostGameCard>,
+    pub postgame_seq: u64,
 }
 
 impl Team {
@@ -283,6 +287,10 @@ impl Team {
             ServerMsg::Pong { .. } => {}
             ServerMsg::Error { message } => {
                 self.last_error = Some(message);
+            }
+            ServerMsg::PostGame { card } => {
+                self.postgame = Some(card);
+                self.postgame_seq += 1;
             }
         }
     }

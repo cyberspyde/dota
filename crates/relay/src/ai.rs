@@ -56,12 +56,50 @@ pub fn prompt(r: &MatchReport, language: &str) -> String {
          mention it when they were clearly better or worse than their usual.\n\
          TEAM LESSON: one thing all five should do differently next game.\n\
          Be specific, use the numbers, tease a little like friends do, never insult. Never invent \
-         facts that are not in the report.\n\nREPORT:\n{}",
+         facts that are not in the report. Only compare with a player's usual where a fact says \
+         'better than usual' or 'worse than usual'; without that, say nothing about their usual.\n\nREPORT:\n{}",
         serde_json::to_string_pretty(&compact(r)).unwrap_or_default()
     )
 }
 
 /// Asks the model; returns the review text.
+/// The model to use: the configured one if Ollama has it; otherwise the
+/// server's "-agent" model, otherwise its largest. Models on the server get
+/// upgraded (qwen3.6-agent became qwen3.8-agent), and the coach should
+/// keep working without a config change.
+async fn pick_model(client: &reqwest::Client, cfg: &AiConfig) -> String {
+    #[derive(serde::Deserialize)]
+    struct Tags {
+        models: Vec<Tag>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Tag {
+        name: String,
+        #[serde(default)]
+        size: u64,
+    }
+    let url = format!("{}/api/tags", cfg.url.trim_end_matches('/'));
+    let Ok(res) = client.get(url).timeout(Duration::from_secs(5)).send().await else { return cfg.model.clone() };
+    let Ok(tags) = res.json::<Tags>().await else { return cfg.model.clone() };
+    choose(&cfg.model, &tags.models.iter().map(|t| (t.name.as_str(), t.size)).collect::<Vec<_>>())
+}
+
+pub fn choose(wanted: &str, models: &[(&str, u64)]) -> String {
+    let bare = |n: &str| n.trim_end_matches(":latest").to_string();
+    if models.iter().any(|(n, _)| bare(n) == bare(wanted)) || models.is_empty() {
+        return wanted.to_string();
+    }
+    let pick = models
+        .iter()
+        .filter(|(n, _)| bare(n).ends_with("-agent"))
+        .max_by_key(|(_, s)| *s)
+        .or_else(|| models.iter().max_by_key(|(_, s)| *s))
+        .map(|(n, _)| n.to_string())
+        .unwrap_or_else(|| wanted.to_string());
+    tracing::warn!("AI model {wanted:?} not on the server; using {pick:?}");
+    pick
+}
+
 pub async fn review(cfg: &AiConfig, r: &MatchReport) -> Result<String, String> {
     if cfg.url.is_empty() {
         return Err("AI review is switched off".into());
@@ -70,8 +108,9 @@ pub async fn review(cfg: &AiConfig, r: &MatchReport) -> Result<String, String> {
         .timeout(Duration::from_secs(600))
         .build()
         .map_err(|e| e.to_string())?;
+    let model = pick_model(&client, cfg).await;
     let body = json!({
-        "model": cfg.model,
+        "model": model,
         "stream": false,
         "think": false,
         "options": { "temperature": 0.7, "num_ctx": 16384 },
@@ -98,4 +137,19 @@ pub async fn review(cfg: &AiConfig, r: &MatchReport) -> Result<String, String> {
         return Err("model returned nothing".into());
     }
     Ok(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::choose;
+
+    #[test]
+    fn falls_back_to_the_servers_agent_model() {
+        let now = [("qwen3.8-agent:latest", 17), ("llava:latest", 4), ("qwen2.5:14b", 8)];
+        assert_eq!(choose("qwen3.6-agent", &now), "qwen3.8-agent:latest");
+        assert_eq!(choose("qwen2.5:14b", &now), "qwen2.5:14b");
+        assert_eq!(choose("qwen3.8-agent", &now), "qwen3.8-agent");
+        assert_eq!(choose("x", &[("a", 1), ("b", 9)]), "b");
+        assert_eq!(choose("x", &[]), "x");
+    }
 }

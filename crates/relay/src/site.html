@@ -279,7 +279,9 @@ function takeKeyFromUrl() {
   if (!m) return false;
   key = decodeURIComponent(m[1]);
   try { localStorage.setItem("teamKey", key); } catch (e) {}
-  history.replaceState(null, "", location.pathname + "#/live");
+  // "#/match/123&key=..." (from the app's post-game card) keeps its page.
+  const rest = location.hash.replace(/[&?]?key=[^&]*/, "").replace(/^#\/?$/, "");
+  history.replaceState(null, "", location.pathname + (rest && rest !== "#" ? rest : "#/live"));
   return true;
 }
 function setKey(k) { key = k.trim(); try { localStorage.setItem("teamKey", key); } catch (e) {} }
