@@ -679,9 +679,13 @@ impl eframe::App for OverlayApp {
             self.dota_running = dota::is_running();
             self.dota_checked_at = Some(now);
         }
-        let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, note, update) = {
+        let (alerts, coach, mates, me, connected, err, rtt, last_gsi, callouts, note, update, enemy) = {
             let mut tm = self.team.lock().unwrap();
             tm.prune(now);
+            // Stale enemy intel (script died, game ended) is dropped.
+            if tm.enemy_at.is_some_and(|at| now.duration_since(at) > Duration::from_secs(10)) {
+                tm.enemy = None;
+            }
             let coach = self.coach.evaluate(&tm, now);
             let mut alerts = coach.alerts.clone();
             alerts.extend(tm.alerts(now));
@@ -698,6 +702,7 @@ impl eframe::App for OverlayApp {
                 tm.callouts.iter().cloned().collect::<Vec<_>>(),
                 tm.notes.back().cloned(),
                 tm.update_available(),
+                tm.enemy.clone(),
             )
         };
         let in_match = me.as_ref().and_then(|m| m.state.as_ref()).is_some_and(|s| s.in_match());
@@ -845,9 +850,15 @@ impl eframe::App for OverlayApp {
                 if ov.compact() { row_compact(ui, &t, me, now, true) } else { row_detailed(ui, &t, me, now, true) }
             }
 
+            if let Some(e) = enemy.as_ref().filter(|e| ov.show_enemy && !coach.focus && !e.heroes.is_empty()) {
+                ui.add_space(4.0);
+                separator(ui, &t);
+                enemy_panel(ui, &t, e);
+            }
+
             if ov.show_radar && !coach.focus {
                 ui.add_space(5.0);
-                radar(ui, &t, me.as_ref(), &mates, &callouts, now, w - 32.0);
+                radar(ui, &t, me.as_ref(), &mates, &callouts, now, w - 32.0, enemy.as_ref());
             }
 
             // Build help.
@@ -1125,7 +1136,59 @@ fn world_to_radar(r: Rect, x: f32, y: f32) -> Pos2 {
     Pos2::new(r.left() + fx * r.width(), r.bottom() - fy * r.height())
 }
 
-fn radar(ui: &mut egui::Ui, t: &Theme, me: Option<&Mate>, mates: &[Mate], callouts: &[crate::team::CalloutEv], now: Instant, max: f32) {
+/// Enemy draft, key items and map state from the in-game bridge.
+fn enemy_panel(ui: &mut egui::Ui, t: &Theme, e: &protocol::EnemyInfo) {
+    ui.label(RichText::new("ENEMY").size(9.5).strong().color(t.dim));
+    for h in &e.heroes {
+        if !h.alive {
+            ui.horizontal(|ui| {
+                one_line(ui, RichText::new(hero_display(&h.hero)).color(t.dim).size(10.5));
+                ui.label(RichText::new(format!("L{}", h.level)).color(t.dim).size(10.0));
+                chip(ui, t, "dead", t.bad);
+            });
+            continue;
+        }
+        ui.horizontal(|ui| {
+            one_line(ui, RichText::new(hero_display(&h.hero)).color(t.text).size(10.5));
+            ui.label(RichText::new(format!("L{}", h.level)).color(t.muted).size(10.0));
+            if h.ult_cooldown == 0 {
+                chip(ui, t, "ULT", t.good);
+            } else if h.ult_cooldown > 0 {
+                chip(ui, t, &format!("ult {}s", h.ult_cooldown), t.dim);
+            }
+            if h.magic_immune {
+                chip(ui, t, "BKB", t.warn);
+            }
+            if h.smoked {
+                chip(ui, t, "smoked", t.dim);
+            }
+            if h.stunned {
+                chip(ui, t, "stunned", t.warn);
+            }
+            if let Some(it) = h.items.iter().find(|i| is_key_item(&i.name)) {
+                chip(ui, t, &item_short(&it.name), if it.cooldown == 0 { t.warn } else { t.dim });
+            }
+        });
+    }
+    let mut line = String::new();
+    if e.roshan.alive {
+        line.push_str(&format!("Roshan {}%", (e.roshan.health as f64 / e.roshan.max_health.max(1) as f64 * 100.0).round() as u32));
+    } else {
+        line.push_str("Roshan dead");
+    }
+    let runes_on = e.runes.iter().filter(|r| r.available_in == 0).count();
+    if runes_on > 0 {
+        line.push_str(&format!(" · {runes_on} rune(s) on the ground"));
+    }
+    if !e.courier.state.is_empty() && e.courier.state != "ok" {
+        line.push_str(&format!(" · courier {}", e.courier.state));
+    }
+    if !line.is_empty() {
+        ui.label(RichText::new(line).color(t.muted).size(10.5));
+    }
+}
+
+fn radar(ui: &mut egui::Ui, t: &Theme, me: Option<&Mate>, mates: &[Mate], callouts: &[crate::team::CalloutEv], now: Instant, max: f32, enemy: Option<&protocol::EnemyInfo>) {
     let size = max.min(130.0);
     let (r, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     let p = ui.painter_at(r);
@@ -1136,6 +1199,13 @@ fn radar(ui: &mut egui::Ui, t: &Theme, me: Option<&Mate>, mates: &[Mate], callou
     for c in callouts {
         if now.duration_since(c.at).as_secs_f32() < 8.0 && (c.x != 0.0 || c.y != 0.0) {
             p.circle_stroke(world_to_radar(r, c.x, c.y), 5.0 + pulse, Stroke::new(1.5_f32, t.warn));
+        }
+    }
+    // Enemy wards from the in-game bridge: green = observer, orange = Sentry.
+    if let Some(e) = enemy {
+        for wd in &e.wards {
+            let c = if wd.kind == "sentry" { t.warn } else { t.good };
+            p.circle_filled(world_to_radar(r, wd.x, wd.y), 2.5, c.gamma_multiply(0.8));
         }
     }
     let draw = |m: &Mate, is_me: bool| {

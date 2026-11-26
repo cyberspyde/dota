@@ -66,15 +66,19 @@ fn plural(n: u32, one: &str, many: &str) -> String {
 }
 
 /// Facts for one player, from whatever sources this report has.
-pub fn cards(p: &PlayerReport, fights_total: u32) -> Vec<Card> {
+/// `app_mates` = how many *other* players ran the app this game. Facts that
+/// measure distance to teammates, fights from positions or help calls need
+/// at least one; with none they would always read "0" and mislead.
+pub fn cards(p: &PlayerReport, fights_total: u32, app_mates: usize) -> Vec<Card> {
     let m: &Metrics = &p.metrics;
     let od = p.od.as_ref();
     let mut out = Vec::new();
+    let team_aware = p.app && app_mates > 0;
 
     // 1. Showing up to fights.
     let (inn, tot, src) = match od {
         Some(o) if o.fights_total > 0 => (o.fights_in, o.fights_total, "replay"),
-        _ if p.app && fights_total > 0 => (m.fights_present, m.fights_total.max(m.fights_present), "measured"),
+        _ if team_aware && fights_total > 0 => (m.fights_present, m.fights_total.max(m.fights_present), "measured"),
         _ => (0, 0, ""),
     };
     if tot > 0 {
@@ -86,22 +90,22 @@ pub fn cards(p: &PlayerReport, fights_total: u32) -> Vec<Card> {
     // 2. Dying where nobody could help.
     if let Some(o) = od {
         let tone = match o.pickoffs { 0 => "good", 1 => "neutral", _ => "bad" };
-        out.push(card("pickoffs", format!("Picked off {} outside team fights", plural(o.pickoffs, "time", "times")), tone, "replay", o.pickoffs as f32, false));
+        out.push(card("pickoffs", format!("Died outside the big team fights {}", plural(o.pickoffs, "time", "times")), tone, "replay", o.pickoffs as f32, false));
     }
-    if p.app {
+    if team_aware {
         let tone = match m.deaths_alone { 0 => "good", 1 => "neutral", _ => "bad" };
         out.push(card("alone_deaths", format!("Died with no teammate nearby {}", plural(m.deaths_alone, "time", "times")), tone, "measured", m.deaths_alone as f32, false));
     }
 
     // 3. Coming when called.
-    if p.app && m.calls_total > 0 {
+    if team_aware && m.calls_total > 0 {
         let tone = if m.calls_answered == m.calls_total { "good" } else if m.calls_answered * 2 < m.calls_total { "bad" } else { "neutral" };
         let speed = if m.calls_answered > 0 { format!(", in {:.0}s on average", m.avg_answer_s) } else { String::new() };
         out.push(card("calls", format!("Came to {} of {} help calls{speed}", m.calls_answered, m.calls_total), tone, "measured", m.calls_answered as f32 / m.calls_total as f32 * 100.0, true));
     }
 
     // 4. Staying out of fights while able to TP in.
-    if p.app && fights_total > 0 {
+    if team_aware && fights_total > 0 {
         let n = m.fights_missed_tp_ready;
         let tone = if n == 0 { "good" } else if n >= 2 { "bad" } else { "neutral" };
         out.push(card("skipped_tp", format!("Stayed out of {} with TP ready", plural(n, "fight", "fights")), tone, "measured", n as f32, false));
@@ -150,7 +154,7 @@ pub fn cards(p: &PlayerReport, fights_total: u32) -> Vec<Card> {
     }
 
     // 8. Fights: first to fall, retreat calls.
-    if p.app && m.first_to_die > 0 {
+    if team_aware && m.first_to_die > 0 {
         out.push(card("first_death", format!("First to die in {}", plural(m.first_to_die, "fight", "fights")), if m.first_to_die >= 2 { "bad" } else { "neutral" }, "measured", m.first_to_die as f32, false));
     }
     if p.app && m.deaths_after_retreat_call > 0 {
@@ -158,7 +162,7 @@ pub fn cards(p: &PlayerReport, fights_total: u32) -> Vec<Card> {
     }
 
     // 9. Distance from the team.
-    if p.app && m.avg_team_distance > 0.0 {
+    if team_aware && m.avg_team_distance > 0.0 {
         let tone = if m.alone_pct > 45.0 { "bad" } else if m.alone_pct < 20.0 { "good" } else { "neutral" };
         out.push(card("far", format!("Far from every teammate {:.0}% of the time", m.alone_pct), tone, "measured", m.alone_pct, false));
     }
@@ -321,8 +325,10 @@ pub fn apply_opendota(r: &mut MatchReport, m: &opendota::Match, heroes: &HashMap
     let fl = r.fights.iter().filter(|f| f.result == "lost").count();
     r.summary = crate::analysis::summary(r.won, r.duration.max(m.duration), r.fights.len(), fw, fl);
     let n = r.fights.len() as u32;
+    let apps = r.players.iter().filter(|p| p.app).count();
     for p in &mut r.players {
-        p.cards = cards(p, n);
+        let mates = apps.saturating_sub(usize::from(p.app));
+        p.cards = cards(p, n, mates);
     }
 }
 
@@ -397,6 +403,20 @@ mod tests {
         assert!(lich.cards.iter().any(|c| c.id == "item_uses" && c.tone == "bad" && c.text.contains("Glimmer")), "{:?}", lich.cards);
         let jug = r.players.iter().find(|p| p.hero == "juggernaut").unwrap();
         assert!(jug.cards.iter().any(|c| c.id == "fights" && c.source == "replay" && c.text.contains("1 of 2")), "{:?}", jug.cards);
+    }
+
+    #[test]
+    fn solo_app_player_gets_no_teammate_facts() {
+        // Only one player ran the app: distances to teammates are unknown.
+        let mut rec = crate::analysis::tests::scenario();
+        rec.tracks.retain(|k, _| k == "C");
+        let r = analyze(&rec);
+        let c = &r.players[0];
+        for id in ["alone_deaths", "skipped_tp", "calls", "far", "first_death", "fights"] {
+            assert!(!c.cards.iter().any(|k| k.id == id), "{id} must not appear for a solo app player: {:?}", c.cards);
+        }
+        // Facts about the player alone still do.
+        assert!(c.cards.iter().any(|k| k.id == "lazy_gold"), "{:?}", c.cards);
     }
 
     #[test]

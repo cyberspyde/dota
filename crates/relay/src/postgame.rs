@@ -98,7 +98,7 @@ pub fn card_for(r: &MatchReport, name: &str, ai_on: bool) -> Option<PostGameCard
 
 /// Sends every connected player who was in this game their card.
 pub fn push(app: &AppState, r: &MatchReport) {
-    let ai_on = !app.ai.url.is_empty();
+    let ai_on = app.ai.enabled();
     for (id, typed) in app.hub.players() {
         let name = crate::profiles::canonical(app.team.as_deref(), &typed);
         if let Some(card) = card_for(r, &name, ai_on) {
@@ -116,7 +116,7 @@ pub fn recent_card(app: &AppState, name: &str) -> Option<PostGameCard> {
     if now_ms().saturating_sub(ended_ms) > 45 * 60_000 {
         return None;
     }
-    card_for(&r, name, !app.ai.url.is_empty())
+    card_for(&r, name, app.ai.enabled())
 }
 
 #[cfg(test)]

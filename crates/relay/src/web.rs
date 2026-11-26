@@ -306,17 +306,20 @@ async fn players(State(app): State<App>, h: HeaderMap) -> Response {
     Json(out).into_response()
 }
 
-/// Analysis from the raw recording, plus OpenDota's facts (if fetched) and
-/// each player's history. None if the recording is gone.
+/// Analysis from the raw recording and each player's history; plus
+/// OpenDota's facts only while OpenDota is switched on (stored replay data
+/// stays on disk for later either way). None if the recording is gone.
 pub async fn rebuild(app: &App, id: &str) -> Option<analysis::MatchReport> {
     let rec = app.store.get_recording(id)?;
     let mut r = analysis::analyze(&rec);
-    if let Some(m) = app.store.get_opendota(id) {
+    if let Some(m) = app.store.get_opendota(id).filter(|_| app.opendota) {
         let heroes = hero_names(app).await;
         if !heroes.is_empty() {
             facts::apply_opendota(&mut r, &m, &heroes);
             r.od = OdStatus { state: "done".into(), note: String::new(), tries: 0 };
         }
+    } else if !app.opendota {
+        r.od = OdStatus { state: "off".into(), note: String::new(), tries: 0 };
     } else if let Some(old) = app.store.get(id) {
         r.od = old.od;
     }
@@ -415,7 +418,7 @@ pub async fn finisher(app: App) {
 }
 
 async fn write_review(app: App, mut report: analysis::MatchReport) {
-    if app.ai.url.is_empty() {
+    if !app.ai.enabled() {
         report.ai_status = "off".into();
         if let Err(e) = app.store.save(&report) {
             warn!("save report {}: {e}", report.match_id);

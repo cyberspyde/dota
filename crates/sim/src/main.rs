@@ -88,7 +88,7 @@ async fn play_script(a: &Args) {
     let calls = script::callouts();
     for t in 0..=script::LENGTH + 3 {
         for (p, tx) in conns.iter_mut().enumerate() {
-            let _ = tx.send(send(&ClientMsg::State { state: script::state(p, t) })).await;
+            let _ = tx.send(send(&ClientMsg::State { state: script::state(p, t), enemy: None })).await;
         }
         for (ct, p, kind, x, y) in &calls {
             if *ct == t {
@@ -165,7 +165,7 @@ async fn main() {
                     ..Default::default()
                 };
                 sent.lock().unwrap().insert((p as u32, seq), Instant::now());
-                let m = ClientMsg::State { state: st };
+                let m = ClientMsg::State { state: st, enemy: None };
                 if tx.send(Message::Text(serde_json::to_string(&m).unwrap().into())).await.is_err() {
                     break;
                 }

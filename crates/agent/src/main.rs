@@ -1,6 +1,7 @@
 //! cyberspyde-agent: runs on each player's PC.
 //!
 //!   Dota 2 --(GSI HTTP, localhost)--> agent --(WebSocket)--> relay --> teammates
+//!     └--(optional in-game enemy bridge)--> agent (enemy intel)
 //!
 //! Usage: cyberspyde-agent [--setup] [--config agent.toml] [--demo] [--headless] [--no-install] [--console]
 
@@ -22,6 +23,7 @@ mod setup;
 mod team;
 mod theme;
 mod updater;
+mod enemy;
 #[cfg(windows)]
 mod tray;
 
@@ -90,6 +92,11 @@ struct GsiCtx {
     last: Mutex<Option<PlayerState>>,
 }
 
+struct EnemyCtx {
+    team: SharedTeam,
+    notify: Arc<Notifier>,
+}
+
 async fn gsi_post(State(ctx): State<Arc<GsiCtx>>, body: Bytes) -> StatusCode {
     let v: serde_json::Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
@@ -144,6 +151,20 @@ pub fn icon() -> egui_icon::IconData {
 }
 mod egui_icon {
     pub use eframe::egui::IconData;
+}
+
+async fn enemy_post(State(ctx): State<Arc<EnemyCtx>>, body: Bytes) -> StatusCode {
+    let v: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+    let enemy::Parsed::Info(info) = enemy::parse(&v);
+    let mut t = ctx.team.lock().unwrap();
+    t.enemy = Some(info);
+    t.enemy_at = Some(std::time::Instant::now());
+    drop(t);
+    ctx.notify.poke();
+    StatusCode::OK
 }
 
 /// A short message for a person who started the program by double-click.
@@ -315,6 +336,22 @@ fn main() {
                         });
                     }
                     Err(e) => error!("cannot listen on {addr}: {e} (is another agent running?)"),
+                }
+                if cfg.enemy_port != 0 {
+                    let ectx = Arc::new(EnemyCtx { team: team.clone(), notify: notify.clone() });
+                    let eapp = Router::new().route("/", post(enemy_post)).with_state(ectx);
+                    let eaddr = std::net::SocketAddr::from(([127, 0, 0, 1], cfg.enemy_port));
+                    match tokio::net::TcpListener::bind(eaddr).await {
+                        Ok(l) => {
+                            info!("listening for enemy intel on http://{eaddr}/");
+                            tokio::spawn(async move {
+                                if let Err(e) = axum::serve(l, eapp).await {
+                                    error!("enemy intel server stopped: {e}");
+                                }
+                            });
+                        }
+                        Err(e) => warn!("enemy intel port {eaddr}: {e} (enemy intel off)"),
+                    }
                 }
             }
             // Demo without a key stays offline; otherwise connect (the menu can set a key later).

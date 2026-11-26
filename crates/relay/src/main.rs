@@ -70,8 +70,20 @@ fn parse_args() -> Result<Config, String> {
     let mut team = None;
     let mut data = PathBuf::from("data");
     let mut public = PathBuf::from("public");
-    let mut ai = ai::AiConfig { url: String::new(), model: "qwen3.6-agent".into(), language: "English".into() };
-    let mut opendota = true;
+    let mut ai = ai::AiConfig {
+        provider: String::new(),
+        url: String::new(),
+        model: "qwen3.8-agent".into(),
+        language: "English".into(),
+        codex_url: "ws://127.0.0.1:48123".into(),
+        codex_token_file: r"C:\ProgramData\DEYA-Agent-Control\appserver.token".into(),
+        codex_model: "gpt-6.2-terra".into(),
+        codex_effort: "low".into(),
+    };
+    // OpenDota waits minutes for the replay parse; the team reviews right
+    // after the game, so it is off unless asked for.
+    let mut opendota = false;
+    let mut test_cmd: Option<(String, String)> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -92,6 +104,15 @@ fn parse_args() -> Result<Config, String> {
             "--team" => team = Some(PathBuf::from(args.next().ok_or("--team needs a path")?)),
             "--data-dir" => data = PathBuf::from(args.next().ok_or("--data-dir needs a path")?),
             "--public-dir" => public = PathBuf::from(args.next().ok_or("--public-dir needs a path")?),
+            "--ai" => ai.provider = args.next().ok_or("--ai needs codex, ollama or off")?,
+            "--codex-url" => ai.codex_url = args.next().ok_or("--codex-url needs a URL")?,
+            "--codex-token-file" => ai.codex_token_file = args.next().ok_or("--codex-token-file needs a path")?,
+            "--codex-model" => ai.codex_model = args.next().ok_or("--codex-model needs a name")?,
+            "--codex-effort" => ai.codex_effort = args.next().ok_or("--codex-effort needs low, medium or high")?,
+            "--opendota" => opendota = true,
+            // cyberspyde-relay coach-test <match.json>: write the review for a saved report and time it.
+            "coach-test" => test_cmd = Some(("coach".into(), args.next().ok_or("coach-test needs a report path")?)),
+            "codex-models" => test_cmd = Some(("models".into(), String::new())),
             "--ai-url" => ai.url = args.next().ok_or("--ai-url needs a URL")?,
             "--ai-model" => ai.model = args.next().ok_or("--ai-model needs a name")?,
             "--ai-lang" => ai.language = args.next().ok_or("--ai-lang needs a language")?,
@@ -109,7 +130,11 @@ fn parse_args() -> Result<Config, String> {
                     "cyberspyde-relay [--bind 0.0.0.0:4747] (--key <team-key> | --key-file <path>) [--team team.toml]\n\
                      --team: private per-player coaching profiles, re-read on each connect.\n\
                      --data-dir data: match history. --public-dir public: cyberspyde-agent.exe and version.txt for the site.\n\
-                     --ai-url http://127.0.0.1:11434 [--ai-model qwen3.6-agent] [--ai-lang English]: post-game reviews by Ollama.\n\
+                     --ai codex [--codex-model gpt-6.2-terra --codex-effort low]: post-game reviews by the Codex app server\n\
+                     \x20 (--codex-url ws://127.0.0.1:48123, --codex-token-file ...).\n\
+                     --ai ollama --ai-url http://127.0.0.1:11434 [--ai-model qwen3.8-agent]: reviews by the local model instead.\n\
+                     --opendota: also fetch replay facts from OpenDota (minutes after the game; off by default).\n\
+                     `cyberspyde-relay coach-test <match.json>` times a review; `codex-models` lists Codex models.\n\
                      `cyberspyde-relay analyze <match.rec.json>` re-runs the analysis and prints the report.\n\
                      The key can also come from the RELAY_KEY environment variable.\n\
                      Dashboard: http://<host>:<port>/#key=<team-key>"
@@ -124,6 +149,34 @@ fn parse_args() -> Result<Config, String> {
     }
     if let Some(t) = &team {
         profiles::load(t)?;
+    }
+    if ai.provider.is_empty() {
+        ai.provider = if ai.url.is_empty() { "off".into() } else { "ollama".into() };
+    }
+    if let Some((cmd, path)) = test_cmd {
+        // Already inside the relay's runtime: block this thread on it.
+        let run = |f: std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + '_>>| {
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
+        };
+        match cmd.as_str() {
+            "models" => match run(Box::pin(async { ai::codex_models(&ai).await.map(|m| m.join("\n")) })) {
+                Ok(m) => println!("{m}"),
+                Err(e) => return Err(e),
+            },
+            _ => {
+                let text = std::fs::read_to_string(&path).map_err(|e| format!("read {path}: {e}"))?;
+                let report: analysis::MatchReport = serde_json::from_str(&text).map_err(|e| format!("parse {path}: {e}"))?;
+                println!("coach: {}", ai.describe());
+                let t0 = std::time::Instant::now();
+                let res = run(Box::pin(ai::review(&ai, &report)));
+                println!("took {:.1} s", t0.elapsed().as_secs_f32());
+                match res {
+                    Ok(t) => println!("{t}"),
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        std::process::exit(0);
     }
     Ok(Config { bind, key, team, data, public, ai, opendota })
 }
@@ -158,10 +211,10 @@ async fn main() {
         }
     };
     info!("match history: {} ({} matches)", cfg.data.display(), store.list().len());
-    if cfg.ai.url.is_empty() {
+    if !cfg.ai.enabled() {
         info!("AI reviews off (no --ai-url)");
     } else {
-        info!("AI reviews: {} model {}", cfg.ai.url, cfg.ai.model);
+        info!("AI reviews: {}", cfg.ai.describe());
     }
     let hub = Arc::new(AppState {
         hub: Hub::new(cfg.key),
@@ -361,8 +414,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, addr: String) {
             ClientMsg::Ping { id: ping } => {
                 let _ = tx.try_send(encode(&ServerMsg::Pong { id: ping, server_ms: now_ms() }));
             }
-            ClientMsg::State { state } if role == Role::Player => {
-                let out = encode(&ServerMsg::State { id, server_ms: now_ms(), state: state.clone() });
+            ClientMsg::State { state, enemy } if role == Role::Player => {
+                let out = encode(&ServerMsg::State { id, server_ms: now_ms(), state: state.clone(), enemy: enemy.clone() });
                 app.recorder.lock().unwrap().on_state(&canon, &state, now_ms());
                 hub.set_state(id, state);
                 hub.broadcast(&out, Some(id));

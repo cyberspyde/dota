@@ -3,7 +3,7 @@
 //! from each teammate's own state stream, so an alert appears on screen the
 //! moment that teammate's health update arrives -- no extra round trip.
 
-use protocol::{CalloutKind, Coaching, PlayerState, ServerMsg};
+use protocol::{CalloutKind, Coaching, EnemyInfo, PlayerState, ServerMsg};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex, OnceLock},
@@ -198,6 +198,10 @@ pub struct Team {
     /// every new or updated card.
     pub postgame: Option<protocol::PostGameCard>,
     pub postgame_seq: u64,
+    /// Enemy intel from the in-game bridge (the newest snapshot wins).
+    pub enemy: Option<EnemyInfo>,
+    /// When the enemy intel was captured (wall clock).
+    pub enemy_at: Option<Instant>,
 }
 
 impl Team {
@@ -260,9 +264,13 @@ impl Team {
             ServerMsg::Left { id } => {
                 self.mates.remove(&id);
             }
-            ServerMsg::State { id, state, .. } => {
+            ServerMsg::State { id, state, enemy, .. } => {
                 if Some(id) != self.my_id {
                     self.mates.entry(id).or_insert_with(|| Mate::new(id, format!("#{id}"))).update(state, now);
+                }
+                if let Some(e) = enemy {
+                    self.enemy = Some(e);
+                    self.enemy_at = Some(now);
                 }
             }
             ServerMsg::Callout { id, kind, x, y, .. } => {
@@ -433,9 +441,9 @@ mod tests {
         let mut a = st(1000, true);
         a.has_pos = true;
         a.x = 4000.0;
-        team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a.clone() });
+        team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a.clone(), enemy: None });
         a.health = 700;
-        team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a });
+        team.apply(ServerMsg::State { id: 1, server_ms: 0, state: a, enemy: None });
         let alerts = team.alerts(Instant::now());
         assert_eq!(alerts[0].severity, Severity::Danger);
         assert!(alerts[0].text.contains("4.0k away"), "{}", alerts[0].text);
@@ -445,9 +453,9 @@ mod tests {
         let mut b = st(1000, true);
         b.has_pos = true;
         b.x = 600.0;
-        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b.clone() });
+        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b.clone(), enemy: None });
         b.health = 700;
-        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b });
+        team.apply(ServerMsg::State { id: 2, server_ms: 0, state: b, enemy: None });
         let alerts = team.alerts(Instant::now());
         assert!(alerts.iter().any(|a| a.text.contains("next to you") && !a.text.contains("TP")));
     }

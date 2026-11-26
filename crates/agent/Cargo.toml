@@ -2,7 +2,7 @@
 name = "agent"
 version.workspace = true
 edition.workspace = true
-description = "Runs on each player's PC: Dota GSI -> relay, team overlay, build helper"
+description = "Runs on each player's PC: Dota GSI + optional in-game enemy intel -> relay, team overlay, build helper"
 
 [[bin]]
 name = "cyberspyde-agent"

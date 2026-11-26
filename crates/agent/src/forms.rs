@@ -228,6 +228,7 @@ pub fn panels(ui: &mut egui::Ui, t: &Theme, cfg: &mut Config) -> bool {
     changed |= toggle(ui, t, &mut cfg.overlay.show_build, "Next-item help for your hero");
     changed |= toggle(ui, t, &mut cfg.overlay.show_tips, "Game-plan tips under the next item");
     changed |= toggle(ui, t, &mut cfg.overlay.show_radar, "Mini radar");
+    changed |= toggle(ui, t, &mut cfg.overlay.show_enemy, "Enemy intel (from the in-game bridge)");
     changed |= toggle(ui, t, &mut cfg.overlay.show_notes, "Tips from the team site");
     changed
 }

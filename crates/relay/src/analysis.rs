@@ -553,7 +553,12 @@ pub fn analyze(rec: &Recording) -> MatchReport {
     let won = (!rec.win_team.is_empty() && !team.is_empty()).then(|| rec.win_team == team);
     let fw = fights.iter().filter(|f| f.result == "won").count();
     let fl = fights.iter().filter(|f| f.result == "lost").count();
-    let summary = summary(won, end, fights.len(), fw, fl);
+    let mut summary = summary(won, end, fights.len(), fw, fl);
+    if ctx.tracks.len() < 2 {
+        // Fights are found from teammates' positions; one player can't show them.
+        let head = summary.split(". ").next().unwrap_or("").to_string();
+        summary = format!("{head}. Team fights show up when two or more of you run the app.");
+    }
     let mut report = MatchReport {
         match_id: rec.match_id.clone(),
         started_ms: rec.started_ms,
@@ -572,8 +577,9 @@ pub fn analyze(rec: &Recording) -> MatchReport {
         ai_review: None,
         ai_status: String::new(),
     };
+    let apps = report.players.len();
     for p in &mut report.players {
-        p.cards = crate::facts::cards(p, report.fights.len() as u32);
+        p.cards = crate::facts::cards(p, report.fights.len() as u32, apps.saturating_sub(1));
     }
     report
 }

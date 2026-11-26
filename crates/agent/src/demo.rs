@@ -155,7 +155,7 @@ pub async fn run(team: SharedTeam, notify: Arc<Notifier>, state_tx: watch::Sende
                 st.x += ((n as f32 + *id as f32) / 20.0).sin() * 12.0;
                 st.y += ((n as f32 + *id as f32) / 23.0).cos() * 12.0;
             }
-            team.lock().unwrap().apply(ServerMsg::State { id: *id, server_ms: 0, state: st.clone() });
+            team.lock().unwrap().apply(ServerMsg::State { id: *id, server_ms: 0, state: st.clone(), enemy: None });
         }
         notify.poke();
     }

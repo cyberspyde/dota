@@ -39,6 +39,91 @@ pub struct Ability {
     pub passive: bool,
 }
 
+/// One enemy hero, as read by the in-game bridge.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct EnemyHero {
+    /// Internal hero name without `npc_dota_hero_`.
+    pub hero: String,
+    pub level: u32,
+    pub alive: bool,
+    pub health: u32,
+    pub max_health: u32,
+    pub x: f32,
+    pub y: f32,
+    /// Fight-changing items on cooldown or ready (BKB, Blink, Glimmer…).
+    pub items: Vec<Item>,
+    /// Ultimate seconds remaining; 0 = ready, -1 = not yet learned.
+    pub ult_cooldown: i32,
+    pub magic_immune: bool,
+    pub smoked: bool,
+    pub stunned: bool,
+}
+
+/// An enemy ward we can see through the helper.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct EnemyWard {
+    /// "observer" or "sentry".
+    pub kind: String,
+    pub x: f32,
+    pub y: f32,
+    /// Seconds since it was placed (the helper's clock).
+    pub age: u32,
+}
+
+/// Roshan and the neutral objective, as the helper sees them.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct RoshanInfo {
+    pub alive: bool,
+    pub health: u32,
+    pub max_health: u32,
+    pub x: f32,
+    pub y: f32,
+    /// Seconds since last death (0 = never died this game).
+    pub last_death: u32,
+}
+
+/// A rune on the map.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct Rune {
+    /// "double" | "aegis" | "blessing" | "haste" | "regeneration" | "vision".
+    pub kind: String,
+    pub x: f32,
+    pub y: f32,
+    /// Seconds until it spawns (0 = on the ground right now).
+    pub available_in: u32,
+}
+
+/// The courier.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct Courier {
+    pub x: f32,
+    pub y: f32,
+    /// "idle" | "moving" | "stashed" | "dead".
+    pub state: String,
+}
+
+/// Everything the in-game bridge can read about the enemy team and the map.
+/// Sent by one player per game (the one whose bridge is running) and shared
+/// with the whole team through the relay, so everyone gets the same picture.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct EnemyInfo {
+    /// Game clock seconds when this snapshot was taken.
+    pub clock: i32,
+    pub heroes: Vec<EnemyHero>,
+    pub wards: Vec<EnemyWard>,
+    pub roshan: RoshanInfo,
+    pub runes: Vec<Rune>,
+    pub courier: Courier,
+    /// Wall-clock ms since epoch when the helper captured this.
+    pub captured_ms: u64,
+}
+
 /// What one player's own Game State Integration reports about themself.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
@@ -277,6 +362,9 @@ pub enum ClientMsg {
     },
     State {
         state: PlayerState,
+        /// Enemy intel from the in-game bridge (empty when the bridge is off).
+        #[serde(default)]
+        enemy: Option<EnemyInfo>,
     },
     Callout {
         kind: CalloutKind,
@@ -318,6 +406,9 @@ pub enum ServerMsg {
         id: u32,
         server_ms: u64,
         state: PlayerState,
+        /// Enemy intel shared by the player whose in-game bridge is running.
+        #[serde(default)]
+        enemy: Option<EnemyInfo>,
     },
     Callout {
         id: u32,
@@ -545,7 +636,7 @@ mod tests {
         assert_eq!(serde_json::from_str::<ClientMsg>(&s).unwrap(), msg);
 
         let st = PlayerState { hero: "axe".into(), level: 7, ..Default::default() };
-        let m = ServerMsg::State { id: 3, server_ms: 9, state: st };
+        let m = ServerMsg::State { id: 3, server_ms: 9, state: st, enemy: None };
         let s = serde_json::to_string(&m).unwrap();
         assert_eq!(serde_json::from_str::<ServerMsg>(&s).unwrap(), m);
     }

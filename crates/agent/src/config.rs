@@ -21,6 +21,11 @@ pub struct Config {
     pub gsi_port: u16,
     /// Shared secret between Dota and this agent (written into the GSI cfg).
     pub gsi_token: String,
+    /// Local port the in-game enemy bridge posts enemy intel to (0 = off).
+    /// No token: it is a localhost-only port, so any bridge that posts there
+    /// is trusted — just drop the bridge into the game's scripts folder.
+    #[serde(default = "default_enemy_port")]
+    pub enemy_port: u16,
     /// Optional override, e.g. "D:/SteamLibrary/steamapps/common/dota 2 beta".
     pub dota_path: String,
     /// Preferred build mood from the build database when a hero has several.
@@ -50,6 +55,8 @@ pub struct OverlayConfig {
     pub show_summary: bool,
     /// Latest tip from the team board.
     pub show_notes: bool,
+    /// Enemy intel from the in-game bridge (draft, items, wards, Roshan).
+    pub show_enemy: bool,
     /// Where the menu opens (logical pixels); negative = centred on screen.
     pub menu_x: f32,
     pub menu_y: f32,
@@ -91,6 +98,7 @@ impl Default for Config {
             key: String::new(),
             gsi_port: 4646,
             gsi_token: random_token(),
+            enemy_port: 0,
             dota_path: String::new(),
             build_mood: String::new(),
             overlay: OverlayConfig::default(),
@@ -114,6 +122,7 @@ impl Default for OverlayConfig {
             density: "detailed".into(),
             show_summary: true,
             show_notes: true,
+            show_enemy: true,
             menu_x: -1.0,
             menu_y: -1.0,
         }
@@ -136,6 +145,10 @@ impl Default for HotkeyConfig {
             menu: "NumpadMultiply".into(),
         }
     }
+}
+
+fn default_enemy_port() -> u16 {
+    4647
 }
 
 fn random_token() -> String {

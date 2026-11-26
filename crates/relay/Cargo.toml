@@ -21,3 +21,5 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 # Ollama on loopback, and OpenDota over HTTPS.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
 sha2 = "0.10"
+# Client side of the Codex app server (local WebSocket, no TLS).
+tokio-tungstenite.workspace = true

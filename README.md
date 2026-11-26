@@ -8,6 +8,7 @@ A team coordination tool for a 5-stack. Each player shares **their own** game st
 - **Callouts on hotkeys**: help, group up, retreat, careful, on my way, Roshan.
 - **A build helper for your hero**: next item and gold still needed, skill-order reminders, game-plan tips. It comes from the old CYBERSPYDE build database, plus builds your pro friend writes **once** instead of explaining them every game.
 - **A team summary line**: how many ultimates and TPs are ready right now, who is dead, observer wards on the team.
+- **Enemy intel** (when one teammate runs the optional in-game bridge): the enemy draft, who is dead, ultimate and key-item status, enemy ward spots, Roshan and rune state — the same picture on everyone's overlay.
 - **An in-game menu** (Numpad *): name, key, server, five themes (Glass, Midnight, Ember, Neon, Frost), size, detailed or compact rows, what to show, and every hotkey.
 - **The team site** at [dota.cyberspyde.uz](https://dota.cyberspyde.uz): download, live view of everyone, match history, and a **post-game report** for every game.
 
@@ -31,7 +32,9 @@ Dota already shows damage, KDA and net worth, so the report measures what it can
 | Carried wards around | Observers in the inventory for three minutes or more before placing them |
 | Time far from the team | Share of time (after 10:00) more than 4000 from every ally |
 
-Each player gets a **usefulness score** out of 100 (fights joined, calls answered, deaths alone, skipped fights, unspent gold, wards; KDA barely counts), a grade from S to D, a nickname for what stood out ("Lone Wolf", "First Responder", "Dragon on a Gold Pile"), their worst and best moments with game time, and a chart of how spread out the team was. A **local AI coach** (Ollama on the team server, Qwen 3.6) then writes a short, honest review per player from those numbers. It only sees the computed report, never the host's private notes.
+There are no scores, grades or MVPs. Each player gets a few plain sentences ("Showed up to 3 of 7 team fights", "Sat on 2,000+ unspent gold for 6 min"), each compared with their own usual once there is history, a nickname for what stood out, and their worst and best moments with game time. Facts that need teammates' positions (fights, deaths with nobody near, help calls) only appear when at least two of you ran the app.
+
+The report is ready about a minute after the game, from the app's own data only. An **AI coach** then writes who helped most, the worst moves with game times, one line per player and a team lesson. It runs on the team server's **Codex** (gpt-6.2-terra with low reasoning; while the account can't use that model it falls back to gpt-5.6-terra), takes 15-20 seconds, and only sees the computed report, never the host's private notes. Replay facts from OpenDota are built in but **off by default**, because OpenDota needs minutes to parse a replay.
 
 ## Personal coaching (private)
 
@@ -52,13 +55,15 @@ How the team's state is read: allies taking burst damage with another ally withi
 
 ## Fair play
 
-The tool uses only Valve's official **Game State Integration (GSI)**. In player mode, Dota sends each player only their own hero, items and abilities. Sharing that with your own team is the same as reading it out on voice chat, just faster and without the shouting. It never reads game memory or injects anything, and it shows **nothing about enemies**. Spectator/observer feeds are explicitly ignored (`gsi.rs`).
+The core tool uses only Valve's official **Game State Integration (GSI)**. In player mode, Dota sends each player only their own hero, items and abilities. Sharing that with your own team is the same as reading it out on voice chat, just faster and without the shouting. It never reads game memory or injects anything, and the teammate rows show **nothing about enemies**. Spectator/observer feeds are explicitly ignored (`gsi.rs`).
+
+The optional **enemy intel** is a separate, clearly-labelled section. One teammate runs a small in-game bridge (a Lua script that runs inside Dota 2); it reads the enemy team, wards, Roshan, runes and the enemy courier and POSTs a snapshot to that teammate's agent over localhost. The agent shares it with the rest of the team, so everyone sees the same picture. It is off until you drop the bridge into your Dota 2 scripts folder, and it is a per-team decision — the overlay shows it in its own "ENEMY" block so nobody mistakes it for their own GSI data.
 
 ## How it works
 
 ```
 Dota 2 ──GSI (HTTP POST, localhost, ≤50 ms)──▶ cyberspyde-agent ──WebSocket──▶ cyberspyde-relay ──▶ 4 teammates' agents
-                                                    │                                    └──▶ team board (browser)
+     └──in-game enemy bridge (optional, localhost)──▶     │                                    └──▶ team board (browser)
                                                     └─ overlay (transparent, click-through, always on top)
 ```
 
@@ -66,7 +71,7 @@ Dota 2 ──GSI (HTTP POST, localhost, ≤50 ms)──▶ cyberspyde-agent ─�
 |---|---|---|
 | `crates/protocol` | – | Shared JSON message types, hero/item names |
 | `crates/relay` | `cyberspyde-relay` | Team server: fans each player's state out to everyone else; records matches, analyses them, serves the site |
-| `crates/agent` | `cyberspyde-agent` | The one program players run: GSI receiver, relay client, overlay, menu, build helper |
+| `crates/agent` | `cyberspyde-agent` | The one program players run: GSI receiver, enemy-intel receiver, relay client, overlay, menu, build helper |
 | `crates/sim` | `cyberspyde-sim` | Developer tool, not shipped: latency test with N fake players, and `--script`, a 40-minute scripted match for testing the report |
 | `legacy-helper/` | – | The old CYBERSPYDE Dota helper (React + Netlify + Supabase), imported from [github.com/cyberspyde/dota](https://github.com/cyberspyde/dota) at commit `9c92436`. Its `build_data_final.json` is compiled into the agent |
 
@@ -111,13 +116,14 @@ The team relay runs on an always-on server at **`dota.cyberspyde.uz`**, behind a
 To run your own relay instead:
 
 ```powershell
-.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key-file team-key.txt --team team.toml --data-dir data --public-dir public --ai-url http://127.0.0.1:11434
+.\dist\cyberspyde-relay.exe --bind 0.0.0.0:4747 --key-file team-key.txt --team team.toml --data-dir data --public-dir public --ai codex
 ```
 
 - `--key-file` keeps the key out of the command line; `--key <key>` and the `RELAY_KEY` variable also work.
 - `--data-dir`: match history (one report and one raw recording per game). `cyberspyde-relay analyze <match.rec.json>` re-runs the analysis offline.
 - `--public-dir`: `cyberspyde-agent.exe` and `version.txt` for the download button (agents see "update available" when the version there is newer), plus `assets/` images for the landing page.
-- `--ai-url` / `--ai-model` / `--ai-lang`: Ollama for the AI coach (off without `--ai-url`; default model `qwen3.6-agent`, English).
+- `--ai codex` (with `--codex-url`, `--codex-token-file`, `--codex-model gpt-6.2-terra`, `--codex-effort low`) uses a Codex app server for the coach; `--ai ollama --ai-url http://127.0.0.1:11434 --ai-model ...` uses a local model instead; `--ai off` switches it off. `cyberspyde-relay coach-test <match.json>` times a review.
+- `--opendota`: after each game, also fetch replay facts from OpenDota (all ten players, real team fights). Off by default.
 - `--team` is optional; without it nobody gets coaching aids. The file is re-read on every connect, so edits apply when a player reconnects.
 - Either open TCP port 4747 (players then enter the bare IP, which becomes `ws://<ip>:4747/ws`), or put the relay on `127.0.0.1:4747` behind a reverse proxy with a domain, which becomes `wss://<domain>/ws`.
 
@@ -162,6 +168,15 @@ The legacy database covers 62 heroes, alphabetically from Abaddon to Monkey King
 - The team key is checked by the relay. Traffic to the team server is encrypted (`wss://`, certificate verified). A self-hosted relay on a bare IP uses plain `ws://`, so don't reuse a real password as the key.
 - The site's landing page and download are public; the live view, match history, reports and player stats need the team key. The site keeps the key in the browser and sends it in a request header, never in a URL query.
 - The GSI receiver listens only on `127.0.0.1` and requires the random token written into Dota's cfg.
+
+## Enemy intel (optional)
+
+Want the enemy draft, items, wards, Roshan and rune state on everyone's overlay?
+
+1. Copy `scripts/enemy_bridge.lua` into your Dota 2 scripts folder (the folder where your Dota 2 Lua scripts live).
+2. Start the agent, then Dota. That's it — the bridge POSTs to `127.0.0.1:4647` (the agent's default), and the agent shares the snapshot with the team.
+
+Only one teammate needs the bridge; the others just see the "ENEMY" block. Turn it off in the menu (Numpad * → Enemy intel), or set `enemy_port = 0` in `agent.toml`.
 
 ## Not yet built
 

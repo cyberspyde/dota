@@ -80,7 +80,8 @@ pub async fn run(
         // Teammates see us right away, not on our next game-state change.
         let current = state_rx.borrow_and_update().clone();
         if let Some(state) = current {
-            let _ = tx.send(text(&ClientMsg::State { state })).await;
+            let enemy = team.lock().unwrap().enemy.clone();
+            let _ = tx.send(text(&ClientMsg::State { state, enemy })).await;
         }
 
         let mut ping = tokio::time::interval(Duration::from_secs(2));
@@ -123,7 +124,8 @@ pub async fn run(
                     if changed.is_err() { return; }
                     let latest = state_rx.borrow_and_update().clone();
                     if let Some(state) = latest {
-                        if tx.send(text(&ClientMsg::State { state })).await.is_err() { break; }
+                        let enemy = team.lock().unwrap().enemy.clone();
+                        if tx.send(text(&ClientMsg::State { state, enemy })).await.is_err() { break; }
                     }
                 }
                 out = out_rx.recv() => {
