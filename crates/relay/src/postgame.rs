@@ -33,7 +33,7 @@ pub fn coach_lines(review: &str, name: &str) -> (Option<String>, Option<String>)
                 // "Name: text" or "Name - text" -> "text"
                 let low = t.to_lowercase();
                 match low.find(&name_l) {
-                    Some(0) => t.get(name.len()..).unwrap_or(&t).trim_start_matches([':', '-', '–', ' ']).trim().to_string(),
+                    Some(0) => t.get(name.len()..).unwrap_or(&t).trim_start_matches([':', '-', '–', '—', ' ']).trim().to_string(),
                     _ => t,
                 }
             })
@@ -75,6 +75,16 @@ fn worst_first(p: &PlayerReport) -> Vec<(String, String)> {
     out
 }
 
+/// "6 team fights: 4 won, 1 lost", or, when nobody else ran the app and so
+/// no fights could be found, a plain note instead of a misleading "0".
+fn team_line(r: &MatchReport, fw: usize, fl: usize) -> String {
+    let apps = r.players.iter().filter(|p| p.app).count();
+    if r.fights.is_empty() && apps < 2 {
+        return "Only you ran the app: team fights show when two or more of you do".into();
+    }
+    format!("{} team fights: {fw} won, {fl} lost", r.fights.len())
+}
+
 /// The card for one player in this report, if they played in it.
 pub fn card_for(r: &MatchReport, name: &str, ai_on: bool) -> Option<PostGameCard> {
     let p = r.players.iter().find(|p| p.name.eq_ignore_ascii_case(name.trim()))?;
@@ -85,7 +95,7 @@ pub fn card_for(r: &MatchReport, name: &str, ai_on: bool) -> Option<PostGameCard
         match_id: r.match_id.clone(),
         won: r.won,
         duration: r.duration,
-        team_line: format!("{} team fights: {fw} won, {fl} lost", r.fights.len()),
+        team_line: team_line(r, fw, fl),
         facts: worst_first(p),
         worst: p.worst.first().map(|m| format!("{} {}", m.clock, m.text)),
         best: p.best.first().map(|m| format!("{} {}", m.clock, m.text)),
@@ -136,6 +146,23 @@ mod tests {
         let (c, _) = coach_lines(REVIEW, "azizbek");
         assert_eq!(c.as_deref(), Some("Place wards earlier."));
         assert_eq!(coach_lines(REVIEW, "Otabek").0, None);
+    }
+
+    #[test]
+    fn em_dash_after_the_name_is_stripped() {
+        let review = "EVERYONE:\n**Ilhom** — Keep placing wards.\n\nTEAM LESSON: Group up.";
+        assert_eq!(coach_lines(review, "Ilhom").0.as_deref(), Some("Keep placing wards."));
+    }
+
+    #[test]
+    fn solo_card_says_why_there_are_no_fights() {
+        let mut rec = crate::analysis::tests::scenario();
+        rec.tracks.retain(|k, _| k == "C");
+        let r = crate::analysis::analyze(&rec);
+        let c = card_for(&r, "C", false).unwrap();
+        assert!(c.team_line.starts_with("Only you ran the app"), "{}", c.team_line);
+        assert!(!c.facts.iter().any(|(_, t)| t.contains("teammate") || t.contains("team fights")), "{:?}", c.facts);
+        assert!(!c.facts.is_empty());
     }
 
     #[test]
